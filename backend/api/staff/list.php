@@ -8,6 +8,7 @@ if (!in_array($auth['role'] ?? '', ['admin', 'manager'], true)) {
 
 $stmt = db()->prepare(
     'SELECT s.id, s.name, s.email, s.role, s.can_switch_homes, s.home_id, s.active,
+            s.monitoring_competency, s.supervision_notes, s.competency_review_date,
             h.name AS home_name
      FROM staff s
      LEFT JOIN homes h ON h.id = s.home_id

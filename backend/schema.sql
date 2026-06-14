@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS staff (
   password_hash    VARCHAR(255) NOT NULL,
   role             ENUM('carer','seniorCarer','nurse','manager','admin') NOT NULL DEFAULT 'carer',
   pin_hash         VARCHAR(255) NULL,
+  monitoring_competency TEXT NULL,
+  supervision_notes TEXT NULL,
+  competency_review_date DATE NULL,
   can_switch_homes TINYINT(1) NOT NULL DEFAULT 0,
   on_shift         TINYINT(1) NOT NULL DEFAULT 0,
   active           TINYINT(1) NOT NULL DEFAULT 1,
@@ -55,13 +58,22 @@ CREATE TABLE IF NOT EXISTS residents (
   room_number   VARCHAR(20) NULL,
   photo_url     VARCHAR(255) NULL,
   nhs_number    CHAR(10) NULL,
-  care_level    ENUM('residential','nursing','dementia','respite','palliative') NOT NULL DEFAULT 'residential',
+  care_level    ENUM('residential','nursing','dementia','respite','palliative','home_care') NOT NULL DEFAULT 'residential',
+  address       TEXT NULL,
+  call_frequency ENUM('daily','weekly') NOT NULL DEFAULT 'daily',
+  call_times    TEXT NULL,
   conditions    TEXT NULL,        -- comma-separated or JSON
   allergies     TEXT NULL,
   medications   TEXT NULL,        -- required/prescribed medications, comma-separated
+  monitoring_methods TEXT NULL,
   mobility      ENUM('independent','walking_aid','wheelchair','bedbound') NOT NULL DEFAULT 'independent',
   fall_risk     ENUM('low','medium','high') NOT NULL DEFAULT 'low',
+  nutrition_risk ENUM('low','medium','high') NOT NULL DEFAULT 'low',
   dnacpr        TINYINT(1) NOT NULL DEFAULT 0,
+  monitoring_consent ENUM('not_required','resident','representative','declined') NOT NULL DEFAULT 'not_required',
+  consent_representative VARCHAR(120) NULL,
+  consent_recorded_at DATE NULL,
+  outcome_review_date DATE NULL,
   gp_name       VARCHAR(120) NULL,
   next_of_kin   VARCHAR(120) NULL,
   next_of_kin_phone VARCHAR(40) NULL,
@@ -164,6 +176,28 @@ CREATE TABLE IF NOT EXISTS care_rounds (
   INDEX (resident_id, due_at)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS care_calls (
+  id                    INT AUTO_INCREMENT PRIMARY KEY,
+  resident_id           INT NOT NULL,
+  scheduled_date        DATE NOT NULL,
+  scheduled_time        CHAR(5) NOT NULL,
+  confirmed             TINYINT(1) NOT NULL DEFAULT 0,
+  confirmed_at          DATETIME NULL,
+  confirmed_by          INT NULL,
+  notes                 TEXT NULL,
+  care_provided         TEXT NULL,
+  safety_checked        TINYINT(1) NOT NULL DEFAULT 0,
+  wellbeing_status      ENUM('stable','physical_change','mental_change','both') NOT NULL DEFAULT 'stable',
+  escalated_to          VARCHAR(120) NULL,
+  promotes_independence TINYINT(1) NOT NULL DEFAULT 1,
+  review_required       TINYINT(1) NOT NULL DEFAULT 0,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (resident_id) REFERENCES residents(id),
+  FOREIGN KEY (confirmed_by) REFERENCES staff(id),
+  UNIQUE KEY uq_care_calls_schedule (resident_id, scheduled_date, scheduled_time),
+  INDEX (resident_id, scheduled_date)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS incidents (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   resident_id     INT NOT NULL,
@@ -187,6 +221,20 @@ CREATE TABLE IF NOT EXISTS incidents (
   status          ENUM('open','investigating','closed') NOT NULL DEFAULT 'open',
   FOREIGN KEY (resident_id) REFERENCES residents(id),
   INDEX (resident_id, occurred_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS staff_competency_records (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  staff_id        INT NOT NULL,
+  competency      VARCHAR(120) NOT NULL,
+  assessed_date   DATE NOT NULL,
+  expiry_date     DATE NULL,
+  assessed_by     VARCHAR(120) NOT NULL,
+  outcome         ENUM('passed','failed','pending') NOT NULL DEFAULT 'passed',
+  notes           TEXT NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE,
+  INDEX (staff_id, expiry_date)
 ) ENGINE=InnoDB;
 
 -- Audit log for CQC / UK GDPR accountability.

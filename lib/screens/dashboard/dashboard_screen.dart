@@ -9,6 +9,7 @@ import '../../providers/resident_provider.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/common/status_pill.dart';
 import '../alerts/alert_detail_screen.dart';
+import '../compliance/compliance_dashboard_screen.dart';
 import '../handover/handover_screen.dart';
 import '../../widgets/home_switcher.dart';
 import '../../widgets/home_cqc_badge.dart';
@@ -87,6 +88,7 @@ class DashboardScreen extends StatelessWidget {
             else
               ...alerts.open.take(8).map((a) => _AlertTile(alert: a)),
             _HandoverCard(),
+            const _ComplianceCard(),
           ],
         ),
       ),
@@ -110,12 +112,27 @@ class DashboardScreen extends StatelessWidget {
         crossAxisSpacing: 8,
         childAspectRatio: 1.6,
         children: [
-          _kpi('Residents', '${residents.residents.length}',
-              Icons.people, AppTheme.primary, () => onNav(1)),
-          _kpi('Open alerts', '${alerts.openCount}',
-              Icons.notifications_active, AppTheme.warning, () => onNav(2)),
-          _kpi('Critical', '${alerts.criticalCount}',
-              Icons.priority_high, AppTheme.critical, () => onNav(2)),
+          _kpi(
+            'Residents',
+            '${residents.residents.length}',
+            Icons.people,
+            AppTheme.primary,
+            () => onNav(1),
+          ),
+          _kpi(
+            'Open alerts',
+            '${alerts.openCount}',
+            Icons.notifications_active,
+            AppTheme.warning,
+            () => onNav(2),
+          ),
+          _kpi(
+            'Critical',
+            '${alerts.criticalCount}',
+            Icons.priority_high,
+            AppTheme.critical,
+            () => onNav(2),
+          ),
           _kpi(
             'Incidents',
             '${incidents.openCount}',
@@ -128,8 +145,13 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _kpi(String label, String value, IconData icon, Color color,
-      VoidCallback onTap) {
+  Widget _kpi(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
@@ -147,14 +169,18 @@ class DashboardScreen extends StatelessWidget {
               Icon(icon, color: color),
               Text(
                 value,
-                style:
-                    const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Row(
                 children: [
                   Expanded(
-                    child: Text(label,
-                        style: const TextStyle(color: Colors.black54)),
+                    child: Text(
+                      label,
+                      style: const TextStyle(color: Colors.black54),
+                    ),
                   ),
                   Icon(Icons.chevron_right, size: 16, color: color),
                 ],
@@ -169,6 +195,38 @@ class DashboardScreen extends StatelessWidget {
 
 // ── Handover card on dashboard ────────────────────────────────────────────────
 
+class _ComplianceCard extends StatelessWidget {
+  const _ComplianceCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      child: Card(
+        child: ListTile(
+          leading: const CircleAvatar(
+            backgroundColor: Color(0xFFE3F2FD),
+            child: Icon(Icons.assignment_outlined, color: AppTheme.info),
+          ),
+          title: const Text(
+            'Compliance dashboard',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: const Text(
+            'Consent, reviews, high-risk residents, missed visits & staff competency',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const ComplianceDashboardScreen(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HandoverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -180,13 +238,17 @@ class _HandoverCard extends StatelessWidget {
             backgroundColor: Color(0xFFE8F5E9),
             child: Icon(Icons.swap_horiz, color: AppTheme.ok),
           ),
-          title: const Text('Shift handover',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: const Text('Read notes from the last shift or write your own'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const HandoverScreen()),
+          title: const Text(
+            'Shift handover',
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
+          subtitle: const Text(
+            'Read notes from the last shift or write your own',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const HandoverScreen())),
         ),
       ),
     );

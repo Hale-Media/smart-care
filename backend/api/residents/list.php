@@ -29,5 +29,9 @@ foreach ($rows as &$r) {
     $r['conditions']  = $r['conditions']  ? array_map('trim', explode(',', $r['conditions']))  : [];
     $r['allergies']   = $r['allergies']   ? array_map('trim', explode(',', $r['allergies']))   : [];
     $r['medications'] = $r['medications'] ? array_map('trim', explode(',', $r['medications'])) : [];
+    $r['call_times'] = $r['call_times'] ? array_map('trim', explode(',', $r['call_times'])) : [];
+    $r['monitoring_methods'] = $r['monitoring_methods']
+        ? array_map('trim', explode(',', $r['monitoring_methods']))
+        : [];
 }
 respond(['residents' => $rows]);

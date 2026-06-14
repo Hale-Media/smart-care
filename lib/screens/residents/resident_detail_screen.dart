@@ -47,6 +47,9 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
   late List<String> _medications = List.from(
     widget.resident?.medications ?? [],
   );
+  late List<String> _monitoringMethods = List.from(
+    widget.resident?.monitoringMethods ?? const [],
+  );
 
   // Pending-text controllers for each tag field, so _save() can flush
   // anything typed but not yet committed as a chip.
@@ -60,12 +63,27 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
   late final _nextOfKinPhone = TextEditingController(
     text: widget.resident?.nextOfKinPhone ?? '',
   );
+  late final _consentRepresentative = TextEditingController(
+    text: widget.resident?.consentRepresentative ?? '',
+  );
   late final _dob = TextEditingController(
     text: widget.resident?.dob != null
         ? DateFormat('d MMM yyyy').format(widget.resident!.dob!)
         : '',
   );
   late DateTime? _dobDate = widget.resident?.dob;
+  late final _consentRecordedAt = TextEditingController(
+    text: widget.resident?.consentRecordedAt != null
+        ? DateFormat('d MMM yyyy').format(widget.resident!.consentRecordedAt!)
+        : '',
+  );
+  late DateTime? _consentRecordedDate = widget.resident?.consentRecordedAt;
+  late final _outcomeReview = TextEditingController(
+    text: widget.resident?.outcomeReviewDate != null
+        ? DateFormat('d MMM yyyy').format(widget.resident!.outcomeReviewDate!)
+        : '',
+  );
+  late DateTime? _outcomeReviewDate = widget.resident?.outcomeReviewDate;
   late String _careLevel = widget.resident?.careLevel ?? 'residential';
   late final _address = TextEditingController(
     text: widget.resident?.address ?? '',
@@ -75,8 +93,21 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
     widget.resident?.callTimes ?? [],
   );
   late String _fallRisk = widget.resident?.fallRisk ?? 'low';
+  late String _nutritionRisk = widget.resident?.nutritionRisk ?? 'low';
   late String _mobility = widget.resident?.mobility ?? 'independent';
   late bool _dnacpr = widget.resident?.dnacpr ?? false;
+  late String _monitoringConsent =
+      widget.resident?.monitoringConsent ?? 'not_required';
+
+  static const _monitoringOptions = [
+    'direct_observation',
+    'digital_care_plan',
+    'movement_sensor',
+    'acoustic_monitor',
+    'fall_detector',
+    'camera',
+    'wearable',
+  ];
 
   Future<void> _pickCallTime() async {
     final picked = await showTimePicker(
@@ -97,8 +128,7 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
   }
 
   Future<void> _pickDob() async {
-    final picked = await showDatePicker(
-      context: context,
+    final picked = await _pickDate(
       initialDate: _dobDate ?? DateTime(1940),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
@@ -109,6 +139,19 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
         _dob.text = DateFormat('d MMM yyyy').format(picked);
       });
     }
+  }
+
+  Future<DateTime?> _pickDate({
+    required DateTime initialDate,
+    DateTime? firstDate,
+    DateTime? lastDate,
+  }) {
+    return showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: firstDate ?? DateTime(2000),
+      lastDate: lastDate ?? DateTime(2100),
+    );
   }
 
   @override
@@ -124,7 +167,10 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
     _gp.dispose();
     _nextOfKin.dispose();
     _nextOfKinPhone.dispose();
+    _consentRepresentative.dispose();
     _dob.dispose();
+    _consentRecordedAt.dispose();
+    _outcomeReview.dispose();
     super.dispose();
   }
 
@@ -159,6 +205,14 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
       conditions: _flushTags(_conditionsInput, _conditions),
       allergies: _flushTags(_allergiesInput, _allergies),
       medications: _flushTags(_medicationsInput, _medications),
+      monitoringMethods: _monitoringMethods,
+      nutritionRisk: _nutritionRisk,
+      monitoringConsent: _monitoringConsent,
+      consentRepresentative: _consentRepresentative.text.trim().isEmpty
+          ? null
+          : _consentRepresentative.text.trim(),
+      consentRecordedAt: _consentRecordedDate,
+      outcomeReviewDate: _outcomeReviewDate,
       gpName: _gp.text.trim().isEmpty ? null : _gp.text.trim(),
       nextOfKin: _nextOfKin.text.trim().isEmpty ? null : _nextOfKin.text.trim(),
       nextOfKinPhone: _nextOfKinPhone.text.trim().isEmpty
@@ -376,6 +430,109 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
                   onChanged: (v) => setState(() => _medications = v),
                 ),
                 const SizedBox(height: 12),
+                const Divider(),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'Monitoring & compliance',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                _dropdown(
+                  'Monitoring consent',
+                  _monitoringConsent,
+                  const [
+                    'not_required',
+                    'resident',
+                    'representative',
+                    'declined',
+                  ],
+                  (v) => setState(() => _monitoringConsent = v),
+                  labelFor: Labels.monitoringConsent,
+                ),
+                const SizedBox(height: 12),
+                if (_monitoringConsent == 'representative')
+                  TextFormField(
+                    controller: _consentRepresentative,
+                    decoration: const InputDecoration(
+                      labelText: 'Lawful representative',
+                    ),
+                  ),
+                if (_monitoringConsent == 'representative')
+                  const SizedBox(height: 12),
+                TextFormField(
+                  controller: _consentRecordedAt,
+                  readOnly: true,
+                  decoration: InputDecoration(
+                    labelText: 'Consent recorded on',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.calendar_today),
+                      onPressed: () async {
+                        final picked = await _pickDate(
+                          initialDate: _consentRecordedDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _consentRecordedDate = picked;
+                            _consentRecordedAt.text = DateFormat(
+                              'd MMM yyyy',
+                            ).format(picked);
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  onTap: () async {
+                    final picked = await _pickDate(
+                      initialDate: _consentRecordedDate ?? DateTime.now(),
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _consentRecordedDate = picked;
+                        _consentRecordedAt.text = DateFormat(
+                          'd MMM yyyy',
+                        ).format(picked);
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Monitoring methods',
+                  ),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _monitoringOptions
+                        .map(
+                          (option) => FilterChip(
+                            label: Text(Labels.monitoringMethod(option)),
+                            selected: _monitoringMethods.contains(option),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _monitoringMethods = [
+                                    ..._monitoringMethods,
+                                    option,
+                                  ];
+                                } else {
+                                  _monitoringMethods = _monitoringMethods
+                                      .where((item) => item != option)
+                                      .toList();
+                                }
+                              });
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _gp,
                   decoration: const InputDecoration(labelText: 'GP name'),
@@ -413,6 +570,53 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
                   const ['low', 'medium', 'high'],
                   (v) => setState(() => _fallRisk = v),
                   labelFor: Labels.fallRisk,
+                ),
+                const SizedBox(height: 12),
+                _dropdown(
+                  'Nutrition risk (MUST)',
+                  _nutritionRisk,
+                  const ['low', 'medium', 'high'],
+                  (v) => setState(() => _nutritionRisk = v),
+                  labelFor: Labels.fallRisk,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _outcomeReview,
+                  readOnly: true,
+                  decoration: InputDecoration(
+                    labelText: 'Next outcome review',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.calendar_today),
+                      onPressed: () async {
+                        final picked = await _pickDate(
+                          initialDate: _outcomeReviewDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _outcomeReviewDate = picked;
+                            _outcomeReview.text = DateFormat(
+                              'd MMM yyyy',
+                            ).format(picked);
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  onTap: () async {
+                    final picked = await _pickDate(
+                      initialDate: _outcomeReviewDate ?? DateTime.now(),
+                      firstDate: DateTime(2020),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _outcomeReviewDate = picked;
+                        _outcomeReview.text = DateFormat(
+                          'd MMM yyyy',
+                        ).format(picked);
+                      });
+                    }
+                  },
                 ),
                 SwitchListTile(
                   value: _dnacpr,
@@ -524,7 +728,36 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
           'Required medications',
           r.medications.join(', ').ifEmptyDash(),
         ),
+        _section(
+          'Monitoring methods',
+          r.monitoringMethods
+              .map(Labels.monitoringMethod)
+              .join(', ')
+              .ifEmptyDash(),
+        ),
+        _section(
+          'Monitoring consent',
+          Labels.monitoringConsent(r.monitoringConsent),
+        ),
+        if (r.consentRepresentative != null)
+          _section(
+            'Lawful representative',
+            r.consentRepresentative!.ifEmptyDash(),
+          ),
+        _section(
+          'Consent recorded on',
+          r.consentRecordedAt == null
+              ? '—'
+              : DateFormat('d MMM yyyy').format(r.consentRecordedAt!),
+        ),
         _section('Mobility', Labels.mobility(r.mobility)),
+        _section('Nutrition risk', Labels.fallRisk(r.nutritionRisk)),
+        _section(
+          'Next outcome review',
+          r.outcomeReviewDate == null
+              ? '—'
+              : DateFormat('d MMM yyyy').format(r.outcomeReviewDate!),
+        ),
         _section('GP', r.gpName?.ifEmptyDash() ?? '—'),
         _section(
           'Next of kin',

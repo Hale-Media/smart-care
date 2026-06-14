@@ -13,6 +13,9 @@ class StaffUser {
   final String? pin;
   final bool onShift;
   final bool active;
+  final String? monitoringCompetency;
+  final String? supervisionNotes;
+  final DateTime? competencyReviewDate;
 
   StaffUser({
     required this.id,
@@ -26,39 +29,49 @@ class StaffUser {
     this.pin,
     this.onShift = false,
     this.active = true,
+    this.monitoringCompetency,
+    this.supervisionNotes,
+    this.competencyReviewDate,
   });
 
   /// Whether this user may switch the active home (admins always can).
   bool get maySwitchHomes => role == StaffRole.admin || canSwitchHomes;
 
   factory StaffUser.fromJson(Map<String, dynamic> j) => StaffUser(
-        id: j['id'] as int,
-        name: j['name'] ?? '',
-        email: j['email'] ?? '',
-        role: StaffRole.fromString(j['role']),
-        companyId: j['company_id'] as int? ?? 0,
-        homeId: j['home_id'] as int? ?? 0,
-        canSwitchHomes:
-            j['can_switch_homes'] == 1 || j['can_switch_homes'] == true,
-        homeName: j['home_name'],
-        pin: j['pin'],
-        onShift: j['on_shift'] == 1 || j['on_shift'] == true,
-        active: j['active'] == null
-            ? true
-            : (j['active'] == 1 || j['active'] == true),
-      );
+    id: j['id'] as int,
+    name: j['name'] ?? '',
+    email: j['email'] ?? '',
+    role: StaffRole.fromString(j['role']),
+    companyId: j['company_id'] as int? ?? 0,
+    homeId: j['home_id'] as int? ?? 0,
+    canSwitchHomes: j['can_switch_homes'] == 1 || j['can_switch_homes'] == true,
+    homeName: j['home_name'],
+    pin: j['pin'],
+    onShift: j['on_shift'] == 1 || j['on_shift'] == true,
+    active: j['active'] == null
+        ? true
+        : (j['active'] == 1 || j['active'] == true),
+    monitoringCompetency: j['monitoring_competency'],
+    supervisionNotes: j['supervision_notes'],
+    competencyReviewDate: j['competency_review_date'] != null
+        ? DateTime.tryParse(j['competency_review_date'])
+        : null,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'email': email,
-        'role': role.name,
-        'company_id': companyId,
-        'home_id': homeId,
-        'can_switch_homes': canSwitchHomes ? 1 : 0,
-        'home_name': homeName,
-        'pin': pin,
-        'on_shift': onShift ? 1 : 0,
-        'active': active ? 1 : 0,
-      };
+    'id': id,
+    'name': name,
+    'email': email,
+    'role': role.name,
+    'company_id': companyId,
+    'home_id': homeId,
+    'can_switch_homes': canSwitchHomes ? 1 : 0,
+    'home_name': homeName,
+    'pin': pin,
+    'on_shift': onShift ? 1 : 0,
+    'active': active ? 1 : 0,
+    'monitoring_competency': monitoringCompetency,
+    'supervision_notes': supervisionNotes,
+    'competency_review_date': competencyReviewDate?.toIso8601String(),
+  };
 }

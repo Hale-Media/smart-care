@@ -35,6 +35,20 @@ if (array_key_exists('active', $in)) {
     $sets[] = 'active = ?';
     $vals[] = !empty($in['active']) ? 1 : 0;
 }
+if (array_key_exists('monitoring_competency', $in)) {
+    $sets[] = 'monitoring_competency = ?';
+    $value = trim((string)($in['monitoring_competency'] ?? ''));
+    $vals[] = $value !== '' ? $value : null;
+}
+if (array_key_exists('supervision_notes', $in)) {
+    $sets[] = 'supervision_notes = ?';
+    $value = trim((string)($in['supervision_notes'] ?? ''));
+    $vals[] = $value !== '' ? $value : null;
+}
+if (array_key_exists('competency_review_date', $in)) {
+    $sets[] = 'competency_review_date = ?';
+    $vals[] = $in['competency_review_date'] ?: null;
+}
 if (empty($sets)) fail('Nothing to update');
 
 $vals[] = $id;

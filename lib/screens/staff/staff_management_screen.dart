@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+﻿// ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +11,7 @@ import '../../services/home_service.dart';
 import '../../services/staff_service.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/loading_view.dart';
+import 'staff_competency_screen.dart';
 
 class StaffManagementScreen extends StatefulWidget {
   const StaffManagementScreen({super.key});
@@ -88,7 +89,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Change role — ${s.name}'),
+        title: Text('Change role ÔÇö ${s.name}'),
         content: StatefulBuilder(
           builder: (ctx, setInner) => Column(
             mainAxisSize: MainAxisSize.min,
@@ -163,7 +164,9 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
       if (mounted) setState(() => _saving.remove(s.id));
@@ -283,7 +286,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                 TextFormField(
                   controller: pinCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'PIN (optional, 4–6 digits)',
+                    labelText: 'PIN (optional, 4ÔÇô6 digits)',
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
@@ -291,7 +294,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                   validator: (v) {
                     if (v == null || v.isEmpty) return null;
                     if (!RegExp(r'^\d{4,6}$').hasMatch(v)) {
-                      return '4–6 digits only';
+                      return '4ÔÇô6 digits only';
                     }
                     return null;
                   },
@@ -457,6 +460,29 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                             ),
                             child: Text(
                               'Change',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (!busy)
+                        InkWell(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => StaffCompetencyScreen(staff: s),
+                            ),
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            child: Text(
+                              'Compliance',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: AppTheme.primary,

@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS care_calls (
+  id                    INT AUTO_INCREMENT PRIMARY KEY,
+  resident_id           INT NOT NULL,
+  scheduled_date        DATE NOT NULL,
+  scheduled_time        CHAR(5) NOT NULL,
+  confirmed             TINYINT(1) NOT NULL DEFAULT 0,
+  confirmed_at          DATETIME NULL,
+  confirmed_by          INT NULL,
+  notes                 TEXT NULL,
+  care_provided         TEXT NULL,
+  safety_checked        TINYINT(1) NOT NULL DEFAULT 0,
+  wellbeing_status      ENUM('stable','physical_change','mental_change','both') NOT NULL DEFAULT 'stable',
+  escalated_to          VARCHAR(120) NULL,
+  promotes_independence TINYINT(1) NOT NULL DEFAULT 1,
+  review_required       TINYINT(1) NOT NULL DEFAULT 0,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (resident_id) REFERENCES residents(id),
+  FOREIGN KEY (confirmed_by) REFERENCES staff(id),
+  UNIQUE KEY uq_care_calls_schedule (resident_id, scheduled_date, scheduled_time),
+  INDEX (resident_id, scheduled_date)
+) ENGINE=InnoDB;
