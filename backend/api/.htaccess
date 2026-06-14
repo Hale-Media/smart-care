@@ -1,0 +1,52 @@
+# /care/backend/api/.htaccess
+# Routing, CORS, and security for the Care Package REST API.
+
+Options -Indexes -MultiViews
+
+# ── Force HTTPS ────────────────────────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
+# ── CORS ───────────────────────────────────────────────────────────────────────
+# Wildcard origin is acceptable here because auth is done via JWT bearer token,
+# not cookies. Restrict to a specific origin if you add cookie-based sessions.
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
+    Header always set Access-Control-Max-Age "86400"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "no-referrer"
+</IfModule>
+
+# ── Routing ────────────────────────────────────────────────────────────────────
+# The Flutter app targets /care/backend/api/<module>/<file>.php but the PHP
+# files live one directory up at /care/backend/<module>/<file>.php.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /care/backend/api/
+
+    # Absorb CORS preflight immediately — no PHP needed.
+    RewriteCond %{REQUEST_METHOD} ^OPTIONS$
+    RewriteRule ^ - [R=204,L]
+
+    # Route to the sibling directories above this one.
+    # e.g. /api/auth/login.php  →  /care/backend/auth/login.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(.+\.php)$ /care/backend/$1 [L,QSA]
+</IfModule>
+
+# ── Security ───────────────────────────────────────────────────────────────────
+# Block direct requests to the shared config file.
+<FilesMatch "^config\.php$">
+    Require all denied
+</FilesMatch>
+
+# Block access to dot-files other than this one.
+<FilesMatch "^\.(?!htaccess)">
+    Require all denied
+</FilesMatch>
