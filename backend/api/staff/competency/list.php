@@ -16,10 +16,19 @@ $own = db()->prepare('SELECT id FROM staff WHERE id = ? AND company_id = ?');
 $own->execute([$staffId, $companyId]);
 if (!$own->fetch()) fail('Staff member not found', 404);
 
-$stmt = db()->prepare(
-    'SELECT * FROM staff_competency_records
-     WHERE staff_id = ?
-     ORDER BY assessed_date DESC'
-);
-$stmt->execute([$staffId]);
-respond(['records' => $stmt->fetchAll()]);
+try {
+    $stmt = db()->prepare(
+        'SELECT * FROM staff_competency_records
+         WHERE staff_id = ?
+         ORDER BY assessed_date DESC'
+    );
+    $stmt->execute([$staffId]);
+    $records = $stmt->fetchAll();
+} catch (PDOException $e) {
+    if (in_array($e->getCode(), ['42S02', '42S22'], true)) {
+        $records = []; // migration not yet applied — return empty gracefully
+    } else {
+        throw $e;
+    }
+}
+respond(['records' => $records]);

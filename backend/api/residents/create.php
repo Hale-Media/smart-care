@@ -15,7 +15,7 @@ $stmt = db()->prepare(
           medications, monitoring_methods, mobility, fall_risk, nutrition_risk,
           dnacpr, monitoring_consent, consent_representative, consent_recorded_at,
           outcome_review_date, gp_name, next_of_kin, next_of_kin_phone, active)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
 );
 // Managers/admins may specify a home_id in the body to create in a different home.
 $canSetHome = in_array($auth['role'] ?? '', ['manager', 'admin'], true);

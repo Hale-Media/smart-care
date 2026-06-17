@@ -3,9 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/care_round.dart';
+import '../../models/due_medication.dart';
+import '../../models/medication.dart';
 import '../../models/resident.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/resident_provider.dart';
+import '../../services/medication_service.dart';
 import '../../services/round_service.dart';
 import '../../utils/labels.dart';
 import '../../widgets/common/empty_state.dart';
@@ -20,7 +23,9 @@ class RoundsScreen extends StatefulWidget {
 
 class _RoundsScreenState extends State<RoundsScreen> {
   final _service = RoundService();
+  final _medService = MedicationService();
   List<CareRound> _rounds = [];
+  List<DueMedication> _dueMeds = [];
   bool _loading = true;
 
   @override
@@ -32,14 +37,29 @@ class _RoundsScreenState extends State<RoundsScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     final now = DateTime.now();
+    final from = DateTime(now.year, now.month, now.day);
+    final to = DateTime(now.year, now.month, now.day, 23, 59);
     try {
-      _rounds = await _service.due(
-        from: DateTime(now.year, now.month, now.day),
-        to: DateTime(now.year, now.month, now.day, 23, 59),
-      );
-      _rounds.sort((a, b) => a.dueAt.compareTo(b.dueAt));
+      final results = await Future.wait([
+        _service.due(from: from, to: to),
+        _medService.dueMedications(from: from, to: to),
+      ]);
+      _rounds = (results[0] as List<CareRound>)
+        ..sort((a, b) => a.dueAt.compareTo(b.dueAt));
+      _dueMeds = results[1] as List<DueMedication>;
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
+  }
+
+  /// Rounds and medication slots merged into chronological order.
+  List<Object> get _items {
+    final all = <Object>[..._rounds, ..._dueMeds];
+    all.sort((a, b) {
+      final at = a is CareRound ? a.dueAt : (a as DueMedication).scheduledFor;
+      final bt = b is CareRound ? b.dueAt : (b as DueMedication).scheduledFor;
+      return at.compareTo(bt);
+    });
+    return all;
   }
 
   Future<void> _complete(CareRound r) async {
@@ -123,7 +143,7 @@ class _RoundsScreenState extends State<RoundsScreen> {
       ),
       body: _loading
           ? const LoadingView()
-          : _rounds.isEmpty
+          : _rounds.isEmpty && _dueMeds.isEmpty
               ? const EmptyState(
                   icon: Icons.checklist,
                   title: 'No rounds scheduled',
@@ -132,9 +152,14 @@ class _RoundsScreenState extends State<RoundsScreen> {
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
-                    itemCount: _rounds.length + 1,
-                    itemBuilder: (_, i) =>
-                        i == 0 ? _progressHeader() : _tile(_rounds[i - 1]),
+                    itemCount: _items.length + 1,
+                    itemBuilder: (_, i) {
+                      if (i == 0) return _progressHeader();
+                      final item = _items[i - 1];
+                      return item is CareRound
+                          ? _tile(item)
+                          : _medTile(item as DueMedication);
+                    },
                   ),
                 ),
     );
@@ -239,6 +264,96 @@ class _RoundsScreenState extends State<RoundsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _medTile(DueMedication med) {
+    final Color color;
+    final String subtitle;
+    if (med.given) {
+      color = AppTheme.ok;
+      final time = med.givenAt != null
+          ? DateFormat('HH:mm').format(med.givenAt!)
+          : '';
+      final by = med.givenByName != null ? ' by ${med.givenByName}' : '';
+      final outcome = med.outcome != null ? ' · ${med.outcome}' : '';
+      subtitle = '$time$by$outcome';
+    } else {
+      color = med.isOverdue ? AppTheme.critical : AppTheme.warning;
+      subtitle = 'Due ${med.timeLabel}${med.isOverdue ? ' · OVERDUE' : ''}';
+    }
+
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            leading: Icon(
+              med.given ? Icons.check_circle : Icons.medication,
+              color: color,
+            ),
+            title: Text(
+              '${med.residentName} · ${med.name} ${med.dose}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(subtitle),
+            trailing: med.controlledDrug
+                ? Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.red.shade300),
+                    ),
+                    child: Text('CD',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade700)),
+                  )
+                : null,
+          ),
+          if (!med.given)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: FilledButton.icon(
+                onPressed: () => _give(med),
+                icon: const Icon(Icons.medication, size: 18),
+                label: const Text('Give'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _give(DueMedication med) async {
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _AdministerSheet(med: med),
+    );
+    if (result == null) return;
+    try {
+      await _medService.administer(MarEntry(
+        id: 0,
+        medicationId: med.medicationId,
+        residentId: med.residentId,
+        scheduledFor: med.scheduledFor,
+        outcome: MarOutcome.values.byName(result['outcome'] as String),
+        witnessStaffName: result['witness'] as String?,
+        notes: result['notes'] as String?,
+      ));
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
   }
 }
 
@@ -672,6 +787,106 @@ class _SchedulePageState extends State<_SchedulePage> {
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Text('Schedule'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Administer medication bottom sheet ────────────────────────────────────────
+
+class _AdministerSheet extends StatefulWidget {
+  final DueMedication med;
+  const _AdministerSheet({required this.med});
+  @override
+  State<_AdministerSheet> createState() => _AdministerSheetState();
+}
+
+class _AdministerSheetState extends State<_AdministerSheet> {
+  String _outcome = 'given';
+  final _witnessCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+
+  static const _outcomes = [
+    'given', 'refused', 'omitted', 'unavailable', 'asleep', 'hospital',
+  ];
+
+  @override
+  void dispose() {
+    _witnessCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.pop(context, {
+      'outcome': _outcome,
+      'witness': _witnessCtrl.text.trim().isEmpty ? null : _witnessCtrl.text.trim(),
+      'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '${widget.med.name} ${widget.med.dose}',
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+          Text(
+            widget.med.residentName,
+            style: const TextStyle(color: Colors.black54),
+          ),
+          const SizedBox(height: 16),
+          const Text('Outcome',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _outcomes
+                .map((o) => ChoiceChip(
+                      label: Text(o[0].toUpperCase() + o.substring(1)),
+                      selected: _outcome == o,
+                      onSelected: (_) => setState(() => _outcome = o),
+                    ))
+                .toList(),
+          ),
+          if (widget.med.controlledDrug) ...[
+            const SizedBox(height: 16),
+            TextField(
+              controller: _witnessCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Witness name (required for CD)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          TextField(
+            controller: _notesCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Notes (optional)',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: (widget.med.controlledDrug &&
+                    _witnessCtrl.text.trim().isEmpty)
+                ? null
+                : _submit,
+            style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48)),
+            child: const Text('Confirm'),
           ),
         ],
       ),

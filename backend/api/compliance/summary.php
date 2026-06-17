@@ -70,16 +70,21 @@ $missedVisits = safe_query(
     [$homeId, $today, $nowTime]
 );
 
-// 5. Staff competency issues — active staff with overdue or missing competency records.
+// 5. Staff competency issues — active staff with no valid (passed, non-expired) competency record.
+// Uses staff_competency_records as the authoritative source; falls back gracefully if the table
+// doesn't exist yet (safe_query catches 42S02 and returns []).
 $staffIssues = safe_query(
-    'SELECT id, name, email, role, monitoring_competency, competency_review_date
-     FROM staff
-     WHERE company_id = ? AND active = 1
-       AND (
-             competency_review_date < ?
-             OR (competency_review_date IS NULL AND monitoring_competency IS NULL)
-           )
-     ORDER BY name',
+    "SELECT s.id, s.name, s.email, s.role,
+            s.monitoring_competency, s.competency_review_date
+     FROM staff s
+     WHERE s.company_id = ? AND s.active = 1
+       AND NOT EXISTS (
+         SELECT 1 FROM staff_competency_records scr
+         WHERE scr.staff_id = s.id
+           AND scr.outcome = 'passed'
+           AND (scr.expiry_date IS NULL OR scr.expiry_date >= ?)
+       )
+     ORDER BY s.name",
     [$companyId, $today]
 );
 

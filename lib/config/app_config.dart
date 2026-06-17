@@ -7,7 +7,7 @@ class AppConfig {
 
   /// Base URL for the PHP/MySQL backend API.
   /// Override per environment (dev/staging/prod).
-  static const String apiBaseUrl = 'https://cryptotaxuk.uk/care/backend/api';
+  static const String apiBaseUrl = 'https://smartcareuk.uk/backend/api';
 
   /// Network timeout for HTTP requests.
   static const Duration httpTimeout = Duration(seconds: 20);

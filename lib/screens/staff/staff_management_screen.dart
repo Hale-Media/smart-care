@@ -11,6 +11,7 @@ import '../../services/home_service.dart';
 import '../../services/staff_service.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/loading_view.dart';
+import 'staff_competency_overview_screen.dart';
 import 'staff_competency_screen.dart';
 
 class StaffManagementScreen extends StatefulWidget {
@@ -351,7 +352,20 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Staff & permissions')),
+      appBar: AppBar(
+        title: const Text('Staff & permissions'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.school_outlined),
+            tooltip: 'Competency overview',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const StaffCompetencyOverviewScreen(),
+              ),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'fab_staff_mgmt',
         onPressed: _showAddStaffDialog,
@@ -445,10 +459,12 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                   ),
                   const SizedBox(height: 6),
                   // Role chip + change button
-                  Row(
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       _RoleChip(role: s.role),
-                      const SizedBox(width: 6),
                       if (!isAdmin && !busy)
                         InkWell(
                           onTap: () => _changeRole(s),

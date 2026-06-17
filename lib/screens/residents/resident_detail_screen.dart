@@ -13,6 +13,7 @@ import '../medication/medication_screen.dart';
 import '../incidents/incident_form_screen.dart';
 import '../incidents/incidents_screen.dart';
 import 'home_care_calls_screen.dart';
+import 'visit_history_screen.dart';
 
 /// Shows a resident profile, or an editable form when adding/editing.
 /// Pass [forHomeId] when creating a resident for a specific home (bypasses
@@ -20,7 +21,13 @@ import 'home_care_calls_screen.dart';
 class ResidentDetailScreen extends StatefulWidget {
   final Resident? resident;
   final int? forHomeId;
-  const ResidentDetailScreen({super.key, this.resident, this.forHomeId});
+  final String? initialCareLevel;
+  const ResidentDetailScreen({
+    super.key,
+    this.resident,
+    this.forHomeId,
+    this.initialCareLevel,
+  });
 
   @override
   State<ResidentDetailScreen> createState() => _ResidentDetailScreenState();
@@ -28,6 +35,7 @@ class ResidentDetailScreen extends StatefulWidget {
 
 class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
   late bool _editing = widget.resident == null;
+  Resident? _savedResident; // holds result after creating a new resident
   final _formKey = GlobalKey<FormState>();
 
   late final _first = TextEditingController(
@@ -84,7 +92,8 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
         : '',
   );
   late DateTime? _outcomeReviewDate = widget.resident?.outcomeReviewDate;
-  late String _careLevel = widget.resident?.careLevel ?? 'residential';
+  late String _careLevel =
+      widget.resident?.careLevel ?? widget.initialCareLevel ?? 'residential';
   late final _address = TextEditingController(
     text: widget.resident?.address ?? '',
   );
@@ -238,15 +247,18 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
     }
 
     final saved = await context.read<ResidentProvider>().save(r);
-    if (saved != null && mounted) {
-      setState(() => _editing = false);
-      Navigator.of(context).pop();
+    if (!mounted) return;
+    if (saved != null) {
+      setState(() { _editing = false; _savedResident = saved; });
+    } else {
+      final err = context.read<ResidentProvider>().error ?? 'Failed to save';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final r = widget.resident;
+    final r = widget.resident ?? _savedResident;
     return Scaffold(
       appBar: AppBar(
         title: Text(r == null ? 'Add resident' : r.fullName),
@@ -648,8 +660,9 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
     ValueChanged<String> onChanged, {
     String Function(String)? labelFor,
   }) {
+    final safeValue = options.contains(value) ? value : options.first;
     return DropdownButtonFormField<String>(
-      initialValue: value,
+      initialValue: safeValue,
       decoration: InputDecoration(labelText: label),
       items: options
           .map(
@@ -665,7 +678,7 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
 
   Widget _profile(Resident r) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
       children: [
         Row(
           children: [
@@ -764,7 +777,7 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
           '${r.nextOfKin ?? '—'} ${r.nextOfKinPhone ?? ''}',
         ),
         const SizedBox(height: 20),
-        _actionGrid(r),
+        ..._actionItems(r),
       ],
     );
   }
@@ -788,7 +801,7 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
     );
   }
 
-  Widget _actionGrid(Resident r) {
+  List<Widget> _actionItems(Resident r) {
     final items = [
       if (r.careLevel == 'home_care')
         _ActionData('Today\'s visits', Icons.home_outlined, () {
@@ -796,41 +809,46 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
             MaterialPageRoute(builder: (_) => HomeCareCallsScreen(resident: r)),
           );
         }),
-      (_ActionData('Vitals / NEWS2', Icons.monitor_heart, () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => VitalsScreen(resident: r)));
-      })),
-      (_ActionData('Medication (MAR)', Icons.medication, () {
+      if (r.careLevel == 'home_care')
+        _ActionData('Visit history', Icons.history_outlined, () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => VisitHistoryScreen(resident: r),
+            ),
+          );
+        }),
+      _ActionData('Vitals / NEWS2', Icons.monitor_heart, () {
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => VitalsScreen(resident: r)));
+      }),
+      _ActionData('Medication (MAR)', Icons.medication, () {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => MedicationScreen(resident: r)),
         );
-      })),
-      (_ActionData('Report incident', Icons.report_problem, () {
+      }),
+      _ActionData('Report incident', Icons.report_problem, () {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => IncidentFormScreen(resident: r)),
         );
-      })),
-      (_ActionData('Incidents history', Icons.history, () {
+      }),
+      _ActionData('Incidents history', Icons.history, () {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => IncidentsScreen(residentId: r.id)),
         );
-      })),
+      }),
     ];
-    return Column(
-      children: items
-          .map(
-            (a) => Card(
-              child: ListTile(
-                leading: Icon(a.icon, color: AppTheme.primary),
-                title: Text(a.label),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: a.onTap,
-              ),
+    return items
+        .map(
+          (a) => Card(
+            child: ListTile(
+              leading: Icon(a.icon, color: AppTheme.primary),
+              title: Text(a.label),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: a.onTap,
             ),
-          )
-          .toList(),
-    );
+          ),
+        )
+        .toList();
   }
 }
 

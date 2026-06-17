@@ -88,15 +88,15 @@ class _Body extends StatelessWidget {
         children: [
           _SummaryHeader(summary: summary),
           if (summary.consentGaps.isNotEmpty)
-            _ConsentSection(items: summary.consentGaps),
+            _ConsentSection(items: summary.consentGaps, onRefresh: onRefresh),
           if (summary.overdueReviews.isNotEmpty)
-            _ReviewSection(items: summary.overdueReviews),
+            _ReviewSection(items: summary.overdueReviews, onRefresh: onRefresh),
           if (summary.highRisk.isNotEmpty)
-            _HighRiskSection(items: summary.highRisk),
+            _HighRiskSection(items: summary.highRisk, onRefresh: onRefresh),
           if (summary.missedVisits.isNotEmpty)
-            _MissedVisitsSection(items: summary.missedVisits),
+            _MissedVisitsSection(items: summary.missedVisits, onRefresh: onRefresh),
           if (summary.staffIssues.isNotEmpty)
-            _StaffSection(items: summary.staffIssues),
+            _StaffSection(items: summary.staffIssues, onRefresh: onRefresh),
           if (summary.totalIssues == 0) const _AllClearView(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -283,7 +283,8 @@ Widget _riskPill(String risk) {
 
 class _ConsentSection extends StatelessWidget {
   final List<ComplianceConsentGap> items;
-  const _ConsentSection({required this.items});
+  final VoidCallback onRefresh;
+  const _ConsentSection({required this.items, required this.onRefresh});
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
@@ -312,16 +313,18 @@ class _ConsentSection extends StatelessWidget {
     try {
       final r = await ResidentService().get(id);
       if (context.mounted)
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => ResidentDetailScreen(resident: r)),
         );
+      onRefresh();
     } catch (_) {}
   }
 }
 
 class _ReviewSection extends StatelessWidget {
   final List<ComplianceResident> items;
-  const _ReviewSection({required this.items});
+  final VoidCallback onRefresh;
+  const _ReviewSection({required this.items, required this.onRefresh});
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
@@ -358,16 +361,18 @@ class _ReviewSection extends StatelessWidget {
     try {
       final r = await ResidentService().get(id);
       if (context.mounted)
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => ResidentDetailScreen(resident: r)),
         );
+      onRefresh();
     } catch (_) {}
   }
 }
 
 class _HighRiskSection extends StatelessWidget {
   final List<ComplianceHighRisk> items;
-  const _HighRiskSection({required this.items});
+  final VoidCallback onRefresh;
+  const _HighRiskSection({required this.items, required this.onRefresh});
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
@@ -401,16 +406,18 @@ class _HighRiskSection extends StatelessWidget {
     try {
       final r = await ResidentService().get(id);
       if (context.mounted)
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => ResidentDetailScreen(resident: r)),
         );
+      onRefresh();
     } catch (_) {}
   }
 }
 
 class _MissedVisitsSection extends StatelessWidget {
   final List<ComplianceMissedVisit> items;
-  const _MissedVisitsSection({required this.items});
+  final VoidCallback onRefresh;
+  const _MissedVisitsSection({required this.items, required this.onRefresh});
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
@@ -439,16 +446,18 @@ class _MissedVisitsSection extends StatelessWidget {
     try {
       final r = await ResidentService().get(id);
       if (context.mounted)
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => ResidentDetailScreen(resident: r)),
         );
+      onRefresh();
     } catch (_) {}
   }
 }
 
 class _StaffSection extends StatelessWidget {
   final List<ComplianceStaffIssue> items;
-  const _StaffSection({required this.items});
+  final VoidCallback onRefresh;
+  const _StaffSection({required this.items, required this.onRefresh});
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
@@ -502,13 +511,22 @@ class _StaffSection extends StatelessWidget {
     try {
       final staffList = await StaffService().list();
       final staffUser = staffList.firstWhere((s) => s.id == item.id);
-      if (context.mounted)
-        Navigator.of(context).push(
+      if (context.mounted) {
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => StaffCompetencyScreen(staff: staffUser),
           ),
         );
-    } catch (_) {}
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open staff record: $e')),
+        );
+      }
+    } finally {
+      onRefresh();
+    }
   }
 }
 

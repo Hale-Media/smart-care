@@ -101,6 +101,7 @@ class _HomeCareCallsScreenState extends State<HomeCareCallsScreen> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: wellbeingStatus,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Wellbeing observed',
                   ),
@@ -387,12 +388,10 @@ class _HomeCareCallsScreenState extends State<HomeCareCallsScreen> {
         isThreeLine: call.confirmed,
         trailing: call.confirmed
             ? null
-            : FilledButton(
+            : IconButton.filled(
                 onPressed: () => _confirm(call),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                ),
-                child: const Text('Confirm'),
+                icon: const Icon(Icons.check_circle_outline),
+                tooltip: 'Confirm visit',
               ),
       ),
     );

@@ -1,3 +1,4 @@
+import '../models/due_medication.dart';
 import '../models/medication.dart';
 import 'api_client.dart';
 
@@ -11,14 +12,17 @@ class MedicationService {
     return items.map((e) => Medication.fromJson(e)).toList();
   }
 
-  /// The MAR rounds due for the current shift across the home.
-  Future<List<MarEntry>> dueEntries({DateTime? from, DateTime? to}) async {
+  Future<List<DueMedication>> dueMedications({
+    required DateTime from,
+    required DateTime to,
+  }) async {
     final res = await _api.get('/medications/mar_due.php', query: {
-      if (from != null) 'from': from.toIso8601String(),
-      if (to != null) 'to': to.toIso8601String(),
+      'from': from.toIso8601String(),
+      'to': to.toIso8601String(),
     });
-    final items = (res['entries'] as List? ?? []);
-    return items.map((e) => MarEntry.fromJson(e)).toList();
+    return (res['slots'] as List? ?? [])
+        .map((e) => DueMedication.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<Medication> create(Medication m) async {

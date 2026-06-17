@@ -1,4 +1,5 @@
 import '../models/staff_competency_record.dart';
+import '../models/staff_competency_summary.dart';
 import 'api_client.dart';
 
 class StaffCompetencyService {
@@ -24,5 +25,12 @@ class StaffCompetencyService {
 
   Future<void> delete(int id) async {
     await _api.post('/staff/competency/delete.php', {'id': id});
+  }
+
+  Future<List<StaffCompetencySummary>> overviewAll() async {
+    final res = await _api.get('/staff/competency/summary.php');
+    return (res['staff'] as List? ?? [])
+        .map((e) => StaffCompetencySummary.fromJson(e))
+        .toList();
   }
 }

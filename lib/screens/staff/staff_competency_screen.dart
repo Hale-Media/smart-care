@@ -390,7 +390,9 @@ class _StaffCompetencyScreenState extends State<StaffCompetencyScreen> {
           ? const EmptyState(
               icon: Icons.school_outlined,
               title: 'No competency records',
-              subtitle: 'Tap "Add record" to log an assessed competency.',
+              subtitle:
+                  'No assessments have been logged for this staff member yet. '
+                  'Tap "Add record" below to add one.',
             )
           : RefreshIndicator(
               onRefresh: _load,

@@ -121,7 +121,7 @@ class Resident {
     'id': id,
     'first_name': firstName,
     'last_name': lastName,
-    'dob': dob?.toIso8601String(),
+    'dob': dob == null ? null : DateFormat('yyyy-MM-dd').format(dob!),
     'room_number': roomNumber,
     'photo_url': photoUrl,
     'nhs_number': nhsNumber,

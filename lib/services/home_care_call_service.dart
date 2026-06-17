@@ -41,6 +41,28 @@ class HomeCareCallService {
     return HomeCareCall.fromJson(res['call']);
   }
 
+  Future<List<HomeCareCall>> history({
+    required DateTime startDate,
+    required DateTime endDate,
+    int? residentId,
+    String? status, // 'confirmed', 'pending', or null for all
+  }) async {
+    String fmt(DateTime d) =>
+        '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+    final query = <String, dynamic>{
+      'start_date': fmt(startDate),
+      'end_date': fmt(endDate),
+      'resident_id': residentId,
+      'status': status,
+    }..removeWhere((_, v) => v == null);
+    final res = await _api.get('/care_calls/history.php', query: query);
+    return (res['calls'] as List? ?? [])
+        .map((e) => HomeCareCall.fromJson(e))
+        .toList();
+  }
+
   /// Generates today's expected calls for a resident (upsert on server).
   Future<List<HomeCareCall>> generateToday(int residentId) async {
     final res = await _api.post('/care_calls/generate.php', {
