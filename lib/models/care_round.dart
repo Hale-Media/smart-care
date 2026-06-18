@@ -44,9 +44,9 @@ class CareRound {
         id: j['id'] as int,
         residentId: j['resident_id'] as int,
         residentName: j['resident_name'],
-        dueAt: DateTime.parse(j['due_at']),
+        dueAt: DateTime.parse('${j['due_at']}Z').toLocal(),
         completedAt: j['completed_at'] != null
-            ? DateTime.tryParse(j['completed_at'])
+            ? DateTime.tryParse('${j['completed_at']}Z')?.toLocal()
             : null,
         completedByStaffId: j['completed_by'],
         completedByName: j['completed_by_name'],

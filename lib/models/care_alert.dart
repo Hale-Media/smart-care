@@ -99,13 +99,13 @@ class CareAlert {
           (e) => e.name == j['status'],
           orElse: () => AlertStatus.active,
         ),
-        createdAt: DateTime.parse(j['created_at']),
+        createdAt: DateTime.parse('${j['created_at']}Z').toLocal(),
         acknowledgedAt: j['acknowledged_at'] != null
-            ? DateTime.tryParse(j['acknowledged_at'])
+            ? DateTime.tryParse('${j['acknowledged_at']}Z')?.toLocal()
             : null,
         acknowledgedByStaffId: j['acknowledged_by'],
         resolvedAt: j['resolved_at'] != null
-            ? DateTime.tryParse(j['resolved_at'])
+            ? DateTime.tryParse('${j['resolved_at']}Z')?.toLocal()
             : null,
         location: j['location'],
         lat: (j['lat'] as num?)?.toDouble(),

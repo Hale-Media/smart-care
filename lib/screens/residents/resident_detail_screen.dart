@@ -12,6 +12,8 @@ import '../vitals/vitals_screen.dart';
 import '../medication/medication_screen.dart';
 import '../incidents/incident_form_screen.dart';
 import '../incidents/incidents_screen.dart';
+import 'care_plan_screen.dart';
+import 'risk_assessment_screen.dart';
 import 'home_care_calls_screen.dart';
 import 'visit_history_screen.dart';
 
@@ -817,6 +819,16 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
             ),
           );
         }),
+      _ActionData('Care plan', Icons.assignment_outlined, () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => CarePlanScreen(resident: r)),
+        );
+      }),
+      _ActionData('Risk assessments', Icons.health_and_safety_outlined, () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => RiskAssessmentScreen(resident: r)),
+        );
+      }),
       _ActionData('Vitals / NEWS2', Icons.monitor_heart, () {
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => VitalsScreen(resident: r)));

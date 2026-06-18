@@ -50,7 +50,7 @@ class StaffCompetencyRecord {
         outcome: j['outcome'] ?? 'passed',
         notes: j['notes'],
         createdAt: j['created_at'] != null
-            ? DateTime.tryParse(j['created_at']) ?? DateTime.now()
+            ? DateTime.tryParse('${j['created_at']}Z')?.toLocal() ?? DateTime.now()
             : DateTime.now(),
       );
 

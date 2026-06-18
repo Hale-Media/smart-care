@@ -56,7 +56,7 @@ class Medication {
         instructions: j['instructions'],
         active: j['active'] == null ? true : (j['active'] == 1 || j['active'] == true),
         lastAdministeredAt: j['last_administered_at'] != null
-            ? DateTime.tryParse(j['last_administered_at'])
+            ? DateTime.tryParse('${j['last_administered_at']}Z')?.toLocal()
             : null,
         lastAdministeredByName: j['last_administered_by_name'],
       );
@@ -115,9 +115,9 @@ class MarEntry {
         id: j['id'] as int,
         medicationId: j['medication_id'] as int,
         residentId: j['resident_id'] as int,
-        scheduledFor: DateTime.parse(j['scheduled_for']),
+        scheduledFor: DateTime.parse('${j['scheduled_for']}Z').toLocal(),
         administeredAt: j['administered_at'] != null
-            ? DateTime.tryParse(j['administered_at'])
+            ? DateTime.tryParse('${j['administered_at']}Z')?.toLocal()
             : null,
         administeredByStaffId: j['administered_by'],
         administeredByName: j['administered_by_name'],

@@ -57,7 +57,7 @@ class HomeCareCall {
     date: DateTime.parse(j['scheduled_date']),
     confirmed: j['confirmed'] == 1 || j['confirmed'] == true,
     confirmedAt: j['confirmed_at'] != null
-        ? DateTime.tryParse(j['confirmed_at'])
+        ? DateTime.tryParse('${j['confirmed_at']}Z')?.toLocal()
         : null,
     confirmedByName: j['confirmed_by_name'],
     notes: j['notes'],

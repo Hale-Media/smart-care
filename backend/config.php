@@ -2,6 +2,8 @@
 // Care Package — shared DB config & helpers (PHP 8.3, PDO/MySQL).
 declare(strict_types=1);
 
+define('APP_ROOT', __DIR__);
+
 const DB_HOST = 'localhost';
 const DB_NAME = 'seanstua_care';
 const DB_USER = 'seanstua_care';
@@ -21,6 +23,7 @@ function db(): PDO {
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]
         );
+        $pdo->exec("SET time_zone = '+00:00'");
     }
     return $pdo;
 }
