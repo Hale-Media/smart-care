@@ -107,7 +107,6 @@ function handleCreate(PDO $pdo, AuditedRepository $repo, array $jwt): never
         'review_due'         => $in['review_due'] ?? null,
         'version_no'         => 1,
         'status'             => 'active',
-        'row_version'        => 1,
         'created_by'         => (int) $jwt['sub'],
     ], 'care_plan_section');
 

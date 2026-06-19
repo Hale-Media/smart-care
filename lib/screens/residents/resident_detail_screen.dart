@@ -12,9 +12,14 @@ import '../vitals/vitals_screen.dart';
 import '../medication/medication_screen.dart';
 import '../incidents/incident_form_screen.dart';
 import '../incidents/incidents_screen.dart';
+import 'advance_decisions_screen.dart';
+import 'capacity_assessments_screen.dart';
 import 'care_plan_screen.dart';
-import 'risk_assessment_screen.dart';
+import 'dols_screen.dart';
 import 'home_care_calls_screen.dart';
+import 'lasting_powers_screen.dart';
+import 'risk_assessment_screen.dart';
+import 'safeguarding_screen.dart';
 import 'visit_history_screen.dart';
 
 /// Shows a resident profile, or an editable form when adding/editing.
@@ -827,6 +832,34 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
       _ActionData('Risk assessments', Icons.health_and_safety_outlined, () {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => RiskAssessmentScreen(resident: r)),
+        );
+      }),
+      _ActionData('DoLS', Icons.lock_outlined, () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => DoLsScreen(resident: r)),
+        );
+      }),
+      _ActionData('Lasting Powers (LPA)', Icons.gavel_outlined, () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+              builder: (_) => LastingPowersScreen(resident: r)),
+        );
+      }),
+      _ActionData('Advance Decisions', Icons.do_not_disturb_on_outlined, () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+              builder: (_) => AdvanceDecisionsScreen(resident: r)),
+        );
+      }),
+      _ActionData('Capacity (MCA)', Icons.psychology_outlined, () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+              builder: (_) => CapacityAssessmentsScreen(resident: r)),
+        );
+      }),
+      _ActionData('Safeguarding', Icons.shield_outlined, () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => SafeguardingScreen(resident: r)),
         );
       }),
       _ActionData('Vitals / NEWS2', Icons.monitor_heart, () {

@@ -21,12 +21,14 @@ final class AuditedRepository
     /** Tables this repository may write to. */
     private const ALLOWED_TABLES = [
         'care_plan_sections', 'risk_assessments', 'care_interventions',
-        'residents', 'medications', 'mar_entries', 'vitals',
+        'residents', 'medications', 'mar_entries', 'cd_register', 'vitals',
         'incidents', 'care_rounds', 'care_calls', 'handover_notes', 'alerts',
+        'capacity_assessments', 'dols_authorisations', 'advance_decisions',
+        'lasting_powers', 'safeguarding_concerns',
     ];
 
     /** Tables that support the versioned supersede pattern. */
-    private const VERSIONED_TABLES = ['care_plan_sections', 'risk_assessments'];
+    private const VERSIONED_TABLES = ['care_plan_sections', 'risk_assessments', 'capacity_assessments'];
 
     public function __construct(
         private PDO $pdo,

@@ -97,9 +97,19 @@ class ApiClient {
     }
     if (ok) return data;
 
-    final msg = (data is Map && data['message'] != null)
-        ? data['message'].toString()
-        : 'Request failed';
+    String msg = 'Request failed';
+    if (data is Map) {
+      if (data['message'] != null) {
+        msg = data['message'].toString();
+      } else if (data['error'] != null) {
+        msg = data['error'].toString();
+      } else if (data['errors'] is List) {
+        msg = (data['errors'] as List).join(', ');
+      }
+      if (data['detail'] != null) {
+        msg = '$msg — ${data['detail']}';
+      }
+    }
     throw ApiException(res.statusCode, msg);
   }
 }

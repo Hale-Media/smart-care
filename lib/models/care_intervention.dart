@@ -7,7 +7,6 @@ class CareIntervention {
   final String description;
   final String? frequency;
   final String status;
-  final int rowVersion;
 
   const CareIntervention({
     required this.id,
@@ -18,30 +17,22 @@ class CareIntervention {
     required this.description,
     this.frequency,
     required this.status,
-    required this.rowVersion,
   });
 
+  static int _i(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return int.tryParse(v.toString()) ?? 0;
+  }
+
   factory CareIntervention.fromJson(Map<String, dynamic> j) => CareIntervention(
-    id: j['id'] as int,
-    homeId: j['home_id'] as int,
-    residentId: j['resident_id'] as int,
-    sectionId: j['section_id'] as int,
-    riskAssessmentId: j['risk_assessment_id'] as int?,
+    id: _i(j['id']),
+    homeId: _i(j['home_id']),
+    residentId: _i(j['resident_id']),
+    sectionId: _i(j['section_id']),
+    riskAssessmentId: j['risk_assessment_id'] == null ? null : _i(j['risk_assessment_id']),
     description: j['description'] as String,
     frequency: j['frequency'] as String?,
     status: j['status'] as String,
-    rowVersion: j['row_version'] as int,
   );
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'home_id': homeId,
-    'resident_id': residentId,
-    'section_id': sectionId,
-    'risk_assessment_id': riskAssessmentId,
-    'description': description,
-    'frequency': frequency,
-    'status': status,
-    'row_version': rowVersion,
-  };
 }

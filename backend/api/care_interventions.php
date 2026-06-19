@@ -114,7 +114,6 @@ function handleCreate(PDO $pdo, AuditedRepository $repo, array $jwt): never
         'description'        => $description,
         'frequency'          => trim((string) ($in['frequency'] ?? '')) ?: null,
         'status'             => 'active',
-        'row_version'        => 1,
         'created_by'         => (int) $jwt['sub'],
     ], 'care_intervention');
 

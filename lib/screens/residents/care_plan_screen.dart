@@ -290,21 +290,6 @@ class _SectionCardState extends State<_SectionCard> {
               ),
             ),
             if (_showInterventions) ...[
-              if (widget.interventions.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    'No active interventions. Tap + to add one.',
-                    style: TextStyle(fontSize: 12, color: Colors.black45),
-                  ),
-                )
-              else
-                ...widget.interventions.map(
-                  (v) => _InterventionTile(
-                    intervention: v,
-                    onStop: () => _confirmStop(v),
-                  ),
-                ),
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
@@ -318,6 +303,21 @@ class _SectionCardState extends State<_SectionCard> {
                   onPressed: _showAddInterventionSheet,
                 ),
               ),
+              if (widget.interventions.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'No active interventions.',
+                    style: TextStyle(fontSize: 12, color: Colors.black45),
+                  ),
+                )
+              else
+                ...widget.interventions.map(
+                  (v) => _InterventionTile(
+                    intervention: v,
+                    onStop: () => _confirmStop(v),
+                  ),
+                ),
               const SizedBox(height: 4),
             ],
             const Divider(height: 1),
@@ -457,6 +457,7 @@ class _InterventionFormSheetState extends State<_InterventionFormSheet> {
   final _descCtrl = TextEditingController();
   final _freqCtrl = TextEditingController();
   bool _saving = false;
+  String? _saveError;
 
   @override
   void dispose() {
@@ -467,7 +468,7 @@ class _InterventionFormSheetState extends State<_InterventionFormSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+    setState(() { _saving = true; _saveError = null; });
     try {
       await widget.onSave(
         _descCtrl.text.trim(),
@@ -475,10 +476,7 @@ class _InterventionFormSheetState extends State<_InterventionFormSheet> {
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
-      }
+      if (mounted) setState(() => _saveError = '$e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -525,6 +523,14 @@ class _InterventionFormSheetState extends State<_InterventionFormSheet> {
               ),
             ),
             const SizedBox(height: 20),
+            if (_saveError != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  _saveError!,
+                  style: const TextStyle(color: Colors.red, fontSize: 13),
+                ),
+              ),
             FilledButton(
               onPressed: _saving ? null : _save,
               child: _saving
