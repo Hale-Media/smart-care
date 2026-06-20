@@ -88,6 +88,11 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    try {
+      await _api.post('/auth/logout.php', {});
+    } catch (_) {
+      // Best-effort — always clear local state even if server is unreachable.
+    }
     await _api.setToken(null);
     await _storage.delete(key: AppConfig.kRefreshToken);
     await _storage.delete(key: AppConfig.kCurrentUser);
