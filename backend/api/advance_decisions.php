@@ -5,18 +5,20 @@ declare(strict_types=1);
  * /api/advance_decisions.php — Smart Care
  *
  * GET    ?resident_id=1  -> all advance decisions for a resident
- * POST   {resident_id, type, ...}  -> create
- * PUT    ?id=5 {...}     -> update
- * DELETE ?id=5           -> soft delete
+ * POST   {resident_id, type, ...}  -> create  (senior+ only)
+ * PUT    ?id=5 {...}     -> update             (senior+ only)
+ * DELETE ?id=5           -> soft delete        (senior+ only)
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/AuditedRepository.php';
 
 header('Content-Type: application/json');
 
-$jwt = require_auth();
-$pdo = db();
+$jwt     = require_auth();
+$pdo     = db();
+$staffId = (int) $jwt['staff_id'];
+$homeId  = (int) $jwt['home_id'];
+$repo    = new AuditedRepository($pdo, $staffId, $homeId, $_SERVER['REMOTE_ADDR'] ?? null);
 
 const AD_TYPES = ['dnacpr', 'respect', 'adrt'];
 
@@ -55,14 +57,11 @@ function requireOwnedAd(PDO $pdo, int $id, int $homeId): array
 }
 
 try {
-    $staffId = (int) $jwt['sub'];
-    $homeId  = (int) $jwt['home'];
-
     match ($_SERVER['REQUEST_METHOD']) {
         'GET'          => handleGet($pdo, $homeId),
-        'POST'         => handleCreate($pdo, $staffId, $homeId),
-        'PUT', 'PATCH' => handleUpdate($pdo, $staffId, $homeId),
-        'DELETE'       => handleDelete($pdo, $staffId, $homeId),
+        'POST'         => handleCreate($repo, $pdo, $staffId, $homeId, $jwt),
+        'PUT', 'PATCH' => handleUpdate($repo, $pdo, $homeId, $jwt),
+        'DELETE'       => handleDelete($repo, $pdo, $homeId, $jwt),
         default        => respond(['error' => 'Method not allowed'], 405),
     };
 } catch (Throwable $e) {
@@ -86,46 +85,44 @@ function handleGet(PDO $pdo, int $homeId): never
     respond(['advance_decisions' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 }
 
-function handleCreate(PDO $pdo, int $staffId, int $homeId): never
+function handleCreate(AuditedRepository $repo, PDO $pdo, int $staffId, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $in         = input();
     $residentId = (int) ($in['resident_id'] ?? 0);
     $type       = (string) ($in['type'] ?? '');
 
     $errors = [];
-    if ($residentId <= 0)                    $errors[] = 'resident_id is required';
-    if (!in_array($type, AD_TYPES, true))    $errors[] = 'invalid type';
+    if ($residentId <= 0)                  $errors[] = 'resident_id is required';
+    if (!in_array($type, AD_TYPES, true))  $errors[] = 'invalid type';
     if ($errors) {
         respond(['errors' => $errors], 422);
     }
     requireResidentInHome($pdo, $residentId, $homeId);
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO advance_decisions
-         (home_id, resident_id, type, in_place, form_reference, completed_by,
-          date_completed, review_date, location, notes, recorded_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-    $stmt->execute([
-        $homeId,
-        $residentId,
-        $type,
-        isset($in['in_place']) ? ($in['in_place'] ? 1 : 0) : 1,
-        trim((string) ($in['form_reference'] ?? '')) ?: null,
-        trim((string) ($in['completed_by'] ?? '')) ?: null,
-        $in['date_completed'] ?? null,
-        $in['review_date'] ?? null,
-        trim((string) ($in['location'] ?? '')) ?: null,
-        trim((string) ($in['notes'] ?? '')) ?: null,
-        $staffId,
-        nowStr(),
-    ]);
-    $id = (int) $pdo->lastInsertId();
+    $id = $repo->insert('advance_decisions', [
+        'home_id'        => $homeId,
+        'resident_id'    => $residentId,
+        'type'           => $type,
+        'in_place'       => isset($in['in_place']) ? ($in['in_place'] ? 1 : 0) : 1,
+        'form_reference' => trim((string) ($in['form_reference'] ?? '')) ?: null,
+        'completed_by'   => trim((string) ($in['completed_by'] ?? '')) ?: null,
+        'date_completed' => $in['date_completed'] ?? null,
+        'review_date'    => $in['review_date'] ?? null,
+        'location'       => trim((string) ($in['location'] ?? '')) ?: null,
+        'notes'          => trim((string) ($in['notes'] ?? '')) ?: null,
+        'recorded_by'    => $staffId,
+        'created_at'     => nowStr(),
+    ], 'advance_decision');
+
     respond(['id' => $id], 201);
 }
 
-function handleUpdate(PDO $pdo, int $staffId, int $homeId): never
+function handleUpdate(AuditedRepository $repo, PDO $pdo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
@@ -133,37 +130,35 @@ function handleUpdate(PDO $pdo, int $staffId, int $homeId): never
     requireOwnedAd($pdo, $id, $homeId);
     $in = input();
 
-    $fields = [];
-    $params = [];
+    if (isset($in['type']) && !in_array($in['type'], AD_TYPES, true)) {
+        respond(['error' => 'invalid type'], 422);
+    }
 
+    $data    = [];
     $allowed = ['type', 'in_place', 'form_reference', 'completed_by',
                  'date_completed', 'review_date', 'location', 'notes'];
     foreach ($allowed as $col) {
         if (array_key_exists($col, $in)) {
-            $fields[] = "$col = ?";
-            $params[] = $col === 'in_place' ? ($in[$col] ? 1 : 0) : $in[$col];
+            $data[$col] = ($col === 'in_place') ? ($in[$col] ? 1 : 0) : $in[$col];
         }
     }
-    if (isset($in['type']) && !in_array($in['type'], AD_TYPES, true)) {
-        respond(['error' => 'invalid type'], 422);
-    }
-    if (empty($fields)) {
+    if (empty($data)) {
         respond(['error' => 'no fields to update'], 422);
     }
-    $params[] = $id;
-    $pdo->prepare('UPDATE advance_decisions SET ' . implode(', ', $fields) . ' WHERE id = ?')
-        ->execute($params);
+
+    $repo->update('advance_decisions', $id, $data, 'advance_decision');
     respond(['updated' => $id]);
 }
 
-function handleDelete(PDO $pdo, int $staffId, int $homeId): never
+function handleDelete(AuditedRepository $repo, PDO $pdo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
     }
     requireOwnedAd($pdo, $id, $homeId);
-    $pdo->prepare('UPDATE advance_decisions SET deleted_at = ?, deleted_by = ? WHERE id = ?')
-        ->execute([nowStr(), $staffId, $id]);
+    $repo->softDelete('advance_decisions', $id, 'advance_decision');
     respond(['deleted' => $id]);
 }

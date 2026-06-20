@@ -5,18 +5,20 @@ declare(strict_types=1);
  * /api/safeguarding.php — Smart Care
  *
  * GET    ?resident_id=1           -> concerns for a resident
- * POST   {category, description, resident_id}  -> raise concern
- * PUT    ?id=5&action=review|refer|no_referral|close {...}  -> action on concern
- * DELETE ?id=5                    -> soft delete
+ * POST   {category, description, resident_id}  -> raise concern  (any authenticated staff)
+ * PUT    ?id=5&action=review|refer|no_referral|close {...}  -> action  (senior+ only)
+ * DELETE ?id=5                    -> soft delete  (senior+ only)
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/AuditedRepository.php';
 
 header('Content-Type: application/json');
 
-$jwt = require_auth();
-$pdo = db();
+$jwt     = require_auth();
+$pdo     = db();
+$staffId = (int) $jwt['staff_id'];
+$homeId  = (int) $jwt['home_id'];
+$repo    = new AuditedRepository($pdo, $staffId, $homeId, $_SERVER['REMOTE_ADDR'] ?? null);
 
 const SG_CATEGORIES = [
     'physical', 'psychological', 'financial', 'neglect', 'sexual',
@@ -62,14 +64,11 @@ function requireOwnedConcern(PDO $pdo, int $id, int $homeId): array
 }
 
 try {
-    $staffId = (int) $jwt['sub'];
-    $homeId  = (int) $jwt['home'];
-
     match ($_SERVER['REQUEST_METHOD']) {
         'GET'          => handleGet($pdo, $homeId),
-        'POST'         => handleCreate($pdo, $staffId, $homeId),
-        'PUT', 'PATCH' => handleAction($pdo, $staffId, $homeId),
-        'DELETE'       => handleDelete($pdo, $staffId, $homeId),
+        'POST'         => handleCreate($repo, $pdo, $staffId, $homeId),
+        'PUT', 'PATCH' => handleAction($repo, $pdo, $homeId, $jwt),
+        'DELETE'       => handleDelete($repo, $pdo, $homeId, $jwt),
         default        => respond(['error' => 'Method not allowed'], 405),
     };
 } catch (Throwable $e) {
@@ -85,7 +84,7 @@ function handleGet(PDO $pdo, int $homeId): never
     requireResidentInHome($pdo, $residentId, $homeId);
 
     $stmt = $pdo->prepare(
-        'SELECT sg.*, CONCAT(s.first_name, " ", s.last_name) AS raised_by_name
+        'SELECT sg.*, s.name AS raised_by_name
          FROM safeguarding_concerns sg
          LEFT JOIN staff s ON s.id = sg.raised_by
          WHERE sg.resident_id = ? AND sg.deleted_at IS NULL
@@ -95,42 +94,40 @@ function handleGet(PDO $pdo, int $homeId): never
     respond(['concerns' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 }
 
-function handleCreate(PDO $pdo, int $staffId, int $homeId): never
+function handleCreate(AuditedRepository $repo, PDO $pdo, int $staffId, int $homeId): never
 {
+    // Intentionally open to all authenticated staff — any carer can raise a concern.
     $in          = input();
     $residentId  = (int) ($in['resident_id'] ?? 0);
     $category    = (string) ($in['category'] ?? '');
     $description = trim((string) ($in['description'] ?? ''));
 
     $errors = [];
-    if ($residentId <= 0)                              $errors[] = 'resident_id is required';
-    if (!in_array($category, SG_CATEGORIES, true))    $errors[] = 'invalid category';
-    if ($description === '')                           $errors[] = 'description is required';
+    if ($residentId <= 0)                           $errors[] = 'resident_id is required';
+    if (!in_array($category, SG_CATEGORIES, true))  $errors[] = 'invalid category';
+    if ($description === '')                         $errors[] = 'description is required';
     if ($errors) {
         respond(['errors' => $errors], 422);
     }
     requireResidentInHome($pdo, $residentId, $homeId);
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO safeguarding_concerns
-         (home_id, resident_id, category, description, status, raised_by, raised_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)'
-    );
-    $stmt->execute([
-        $homeId,
-        $residentId,
-        $category,
-        $description,
-        'raised',
-        $staffId,
-        nowStr(),
-    ]);
-    $id = (int) $pdo->lastInsertId();
+    $id = $repo->insert('safeguarding_concerns', [
+        'home_id'     => $homeId,
+        'resident_id' => $residentId,
+        'category'    => $category,
+        'description' => $description,
+        'status'      => 'raised',
+        'raised_by'   => $staffId,
+        'raised_at'   => nowStr(),
+    ], 'safeguarding_concern');
+
     respond(['id' => $id], 201);
 }
 
-function handleAction(PDO $pdo, int $staffId, int $homeId): never
+function handleAction(AuditedRepository $repo, PDO $pdo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id     = (int) ($_GET['id'] ?? 0);
     $action = (string) ($_GET['action'] ?? '');
     if ($id <= 0) {
@@ -143,67 +140,59 @@ function handleAction(PDO $pdo, int $staffId, int $homeId): never
     if ($concern['status'] === 'closed') {
         respond(['error' => 'concern is already closed'], 409);
     }
-    $in = input();
-
-    $fields = [];
-    $params = [];
+    $in   = input();
+    $data = [];
 
     switch ($action) {
         case 'review':
-            $fields[] = "status = 'under_review'";
+            $data['status'] = 'under_review';
             if (!empty($in['manager_review'])) {
-                $fields[] = 'manager_review = ?';
-                $params[] = trim((string) $in['manager_review']);
+                $data['manager_review'] = trim((string) $in['manager_review']);
             }
             break;
         case 'refer':
-            $fields[] = "status = 'referred'";
-            $fields[] = 'la_referred = 1';
-            $fields[] = 'referred_at = ?';
-            $params[] = nowStr();
+            $data['status']      = 'referred';
+            $data['la_referred'] = 1;
+            $data['referred_at'] = nowStr();
             if (!empty($in['la_reference'])) {
-                $fields[] = 'la_reference = ?';
-                $params[] = trim((string) $in['la_reference']);
+                $data['la_reference'] = trim((string) $in['la_reference']);
             }
             if (!empty($in['cqc_notified'])) {
-                $fields[] = 'cqc_notified = 1';
+                $data['cqc_notified'] = 1;
             }
             break;
         case 'no_referral':
-            $fields[] = "status = 'no_referral'";
+            $data['status'] = 'no_referral';
             if (!empty($in['manager_review'])) {
-                $fields[] = 'manager_review = ?';
-                $params[] = trim((string) $in['manager_review']);
+                $data['manager_review'] = trim((string) $in['manager_review']);
             }
             break;
         case 'close':
-            $fields[] = "status = 'closed'";
-            $fields[] = 'closed_at = ?';
-            $params[] = nowStr();
+            $data['status']    = 'closed';
+            $data['closed_at'] = nowStr();
             if (!empty($in['outcome'])) {
-                $fields[] = 'outcome = ?';
-                $params[] = trim((string) $in['outcome']);
+                $data['outcome'] = trim((string) $in['outcome']);
             }
             break;
     }
 
-    if (empty($fields)) {
+    if (empty($data)) {
         respond(['error' => 'no fields to update'], 422);
     }
-    $params[] = $id;
-    $pdo->prepare('UPDATE safeguarding_concerns SET ' . implode(', ', $fields) . ' WHERE id = ?')
-        ->execute($params);
+
+    $repo->update('safeguarding_concerns', $id, $data, 'safeguarding_concern');
     respond(['updated' => $id]);
 }
 
-function handleDelete(PDO $pdo, int $staffId, int $homeId): never
+function handleDelete(AuditedRepository $repo, PDO $pdo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
     }
     requireOwnedConcern($pdo, $id, $homeId);
-    $pdo->prepare('UPDATE safeguarding_concerns SET deleted_at = ?, deleted_by = ? WHERE id = ?')
-        ->execute([nowStr(), $staffId, $id]);
+    $repo->softDelete('safeguarding_concerns', $id, 'safeguarding_concern');
     respond(['deleted' => $id]);
 }

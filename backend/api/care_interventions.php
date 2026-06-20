@@ -11,37 +11,32 @@ declare(strict_types=1);
  *
  * GET    ?resident_id=1                 -> active interventions (with context)
  * GET    ?resident_id=1&all=1           -> include stopped ones
- * POST   {resident_id, section_id, description, risk_assessment_id?, frequency?}
- * PUT    ?id=5 {description?, frequency?, status?, risk_assessment_id?}
- * DELETE ?id=5                          -> soft delete (use status=stopped for
- *                                          a normal end-of-intervention instead)
+ * POST   {resident_id, section_id, description, risk_assessment_id?, frequency?}  (senior+ only)
+ * PUT    ?id=5 {description?, frequency?, status?, risk_assessment_id?}            (senior+ only)
+ * DELETE ?id=5                          -> soft delete  (senior+ only)
  *
  * NOTE: not a versioned table — interventions use a status lifecycle
  * (active -> stopped), so this uses insert/update, NOT supersede.
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/AuditedRepository.php';
 
 header('Content-Type: application/json');
 
-$jwt  = require_auth();
-$pdo  = db();
-$repo = new AuditedRepository(
-    $pdo,
-    (int) $jwt['sub'],
-    (int) $jwt['home'],
-    $_SERVER['REMOTE_ADDR'] ?? null
-);
+$jwt     = require_auth();
+$pdo     = db();
+$staffId = (int) $jwt['staff_id'];
+$homeId  = (int) $jwt['home_id'];
+$repo    = new AuditedRepository($pdo, $staffId, $homeId, $_SERVER['REMOTE_ADDR'] ?? null);
 
 const INTERVENTION_STATUSES = ['active', 'stopped'];
 
 try {
     match ($_SERVER['REQUEST_METHOD']) {
-        'GET'          => handleGet($pdo, $jwt),
-        'POST'         => handleCreate($pdo, $repo, $jwt),
-        'PUT', 'PATCH' => handleUpdate($pdo, $repo, $jwt),
-        'DELETE'       => handleDelete($pdo, $repo, $jwt),
+        'GET'          => handleGet($pdo, $homeId),
+        'POST'         => handleCreate($pdo, $repo, $staffId, $homeId, $jwt),
+        'PUT', 'PATCH' => handleUpdate($pdo, $repo, $homeId, $jwt),
+        'DELETE'       => handleDelete($pdo, $repo, $homeId, $jwt),
         default        => respond(['error' => 'Method not allowed'], 405),
     };
 } catch (Throwable $e) {
@@ -52,13 +47,13 @@ try {
 // Handlers
 // =====================================================================
 
-function handleGet(PDO $pdo, array $jwt): never
+function handleGet(PDO $pdo, int $homeId): never
 {
     $residentId = (int) ($_GET['resident_id'] ?? 0);
     if ($residentId <= 0) {
         respond(['error' => 'resident_id is required'], 422);
     }
-    requireResidentInHome($pdo, $residentId, (int) $jwt['home']);
+    requireResidentInHome($pdo, $residentId, $homeId);
 
     // Join in the section + risk context so the app can render a useful
     // label ("Reposition 2h — skin / Waterlow high") without extra calls.
@@ -81,8 +76,10 @@ function handleGet(PDO $pdo, array $jwt): never
     respond(['interventions' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 }
 
-function handleCreate(PDO $pdo, AuditedRepository $repo, array $jwt): never
+function handleCreate(PDO $pdo, AuditedRepository $repo, int $staffId, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $in          = json_input();
     $residentId  = (int) ($in['resident_id'] ?? 0);
     $sectionId   = (int) ($in['section_id'] ?? 0);
@@ -97,10 +94,7 @@ function handleCreate(PDO $pdo, AuditedRepository $repo, array $jwt): never
         respond(['errors' => $errors], 422);
     }
 
-    $homeId = (int) $jwt['home'];
     requireResidentInHome($pdo, $residentId, $homeId);
-    // The section AND the (optional) risk assessment must belong to THIS
-    // resident — stops an intervention linking another resident's records.
     requireSectionForResident($pdo, $sectionId, $residentId, $homeId);
     if ($riskId !== null) {
         requireAssessmentForResident($pdo, $riskId, $residentId, $homeId);
@@ -114,20 +108,22 @@ function handleCreate(PDO $pdo, AuditedRepository $repo, array $jwt): never
         'description'        => $description,
         'frequency'          => trim((string) ($in['frequency'] ?? '')) ?: null,
         'status'             => 'active',
-        'created_by'         => (int) $jwt['sub'],
+        'created_by'         => $staffId,
     ], 'care_intervention');
 
     respond(['id' => $id], 201);
 }
 
-function handleUpdate(PDO $pdo, AuditedRepository $repo, array $jwt): never
+function handleUpdate(PDO $pdo, AuditedRepository $repo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     $in = json_input();
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
     }
-    $existing = requireOwnedIntervention($pdo, $id, (int) $jwt['home']);
+    $existing = requireOwnedIntervention($pdo, $id, $homeId);
 
     $data = [];
     if (array_key_exists('description', $in)) {
@@ -149,9 +145,7 @@ function handleUpdate(PDO $pdo, AuditedRepository $repo, array $jwt): never
     if (array_key_exists('risk_assessment_id', $in)) {
         $riskId = $in['risk_assessment_id'] === null ? null : (int) $in['risk_assessment_id'];
         if ($riskId !== null) {
-            requireAssessmentForResident(
-                $pdo, $riskId, (int) $existing['resident_id'], (int) $jwt['home']
-            );
+            requireAssessmentForResident($pdo, $riskId, (int) $existing['resident_id'], $homeId);
         }
         $data['risk_assessment_id'] = $riskId;
     }
@@ -164,13 +158,15 @@ function handleUpdate(PDO $pdo, AuditedRepository $repo, array $jwt): never
     respond(['id' => $id]);
 }
 
-function handleDelete(PDO $pdo, AuditedRepository $repo, array $jwt): never
+function handleDelete(PDO $pdo, AuditedRepository $repo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
     }
-    requireOwnedIntervention($pdo, $id, (int) $jwt['home']);
+    requireOwnedIntervention($pdo, $id, $homeId);
     $repo->softDelete('care_interventions', $id, 'care_intervention');
     respond(['deleted' => $id]);
 }

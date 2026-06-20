@@ -6,18 +6,20 @@ declare(strict_types=1);
  *
  * GET    ?resident_id=1                      -> active assessments per decision
  * GET    ?resident_id=1&decision=X&history=1 -> version history for a decision
- * POST   {resident_id, decision, has_capacity, ...}  -> create
- * PUT    ?id=5 {has_capacity, ...}            -> re-assess (creates new version)
- * DELETE ?id=5                                -> soft delete
+ * POST   {resident_id, decision, has_capacity, ...}  -> create  (senior+ only)
+ * PUT    ?id=5 {has_capacity, ...}            -> re-assess (new version)  (senior+ only)
+ * DELETE ?id=5                                -> soft delete  (senior+ only)
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/AuditedRepository.php';
 
 header('Content-Type: application/json');
 
-$jwt = require_auth();
-$pdo = db();
+$jwt     = require_auth();
+$pdo     = db();
+$staffId = (int) $jwt['staff_id'];
+$homeId  = (int) $jwt['home_id'];
+$repo    = new AuditedRepository($pdo, $staffId, $homeId, $_SERVER['REMOTE_ADDR'] ?? null);
 
 function nowStr(): string
 {
@@ -54,14 +56,11 @@ function requireOwnedAssessment(PDO $pdo, int $id, int $homeId): array
 }
 
 try {
-    $staffId = (int) $jwt['sub'];
-    $homeId  = (int) $jwt['home'];
-
     match ($_SERVER['REQUEST_METHOD']) {
         'GET'          => handleGet($pdo, $homeId),
-        'POST'         => handleCreate($pdo, $staffId, $homeId),
-        'PUT', 'PATCH' => handleReassess($pdo, $staffId, $homeId),
-        'DELETE'       => handleDelete($pdo, $staffId, $homeId),
+        'POST'         => handleCreate($repo, $pdo, $staffId, $homeId, $jwt),
+        'PUT', 'PATCH' => handleReassess($repo, $pdo, $staffId, $homeId, $jwt),
+        'DELETE'       => handleDelete($repo, $pdo, $homeId, $jwt),
         default        => respond(['error' => 'Method not allowed'], 405),
     };
 } catch (Throwable $e) {
@@ -99,45 +98,44 @@ function handleGet(PDO $pdo, int $homeId): never
     respond(['assessments' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 }
 
-function handleCreate(PDO $pdo, int $staffId, int $homeId): never
+function handleCreate(AuditedRepository $repo, PDO $pdo, int $staffId, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $in         = input();
     $residentId = (int) ($in['resident_id'] ?? 0);
     $decision   = trim((string) ($in['decision'] ?? ''));
 
     $errors = [];
-    if ($residentId <= 0)  $errors[] = 'resident_id is required';
-    if ($decision === '')  $errors[] = 'decision is required';
+    if ($residentId <= 0)          $errors[] = 'resident_id is required';
+    if ($decision === '')          $errors[] = 'decision is required';
     if (!isset($in['has_capacity'])) $errors[] = 'has_capacity is required';
     if ($errors) {
         respond(['errors' => $errors], 422);
     }
     requireResidentInHome($pdo, $residentId, $homeId);
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO capacity_assessments
-         (home_id, resident_id, decision, has_capacity, assessment_summary,
-          best_interests, assessed_by, review_due, version_no, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
-    );
-    $stmt->execute([
-        $homeId,
-        $residentId,
-        $decision,
-        $in['has_capacity'] ? 1 : 0,
-        trim((string) ($in['assessment_summary'] ?? '')) ?: null,
-        trim((string) ($in['best_interests'] ?? '')) ?: null,
-        $staffId,
-        $in['review_due'] ?? null,
-        'active',
-        nowStr(),
-    ]);
-    $id = (int) $pdo->lastInsertId();
+    $id = $repo->insert('capacity_assessments', [
+        'home_id'            => $homeId,
+        'resident_id'        => $residentId,
+        'decision'           => $decision,
+        'has_capacity'       => $in['has_capacity'] ? 1 : 0,
+        'assessment_summary' => trim((string) ($in['assessment_summary'] ?? '')) ?: null,
+        'best_interests'     => trim((string) ($in['best_interests'] ?? '')) ?: null,
+        'assessed_by'        => $staffId,
+        'review_due'         => $in['review_due'] ?? null,
+        'version_no'         => 1,
+        'status'             => 'active',
+        'created_at'         => nowStr(),
+    ], 'capacity_assessment');
+
     respond(['id' => $id], 201);
 }
 
-function handleReassess(PDO $pdo, int $staffId, int $homeId): never
+function handleReassess(AuditedRepository $repo, PDO $pdo, int $staffId, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
@@ -148,52 +146,41 @@ function handleReassess(PDO $pdo, int $staffId, int $homeId): never
     }
     $in = input();
 
-    $pdo->beginTransaction();
-    try {
-        $pdo->prepare("UPDATE capacity_assessments SET status = 'superseded' WHERE id = ?")
-            ->execute([$id]);
+    $newId = $repo->supersede(
+        'capacity_assessments',
+        'capacity_assessment',
+        $id,
+        [
+            'home_id'            => (int) $old['home_id'],
+            'resident_id'        => (int) $old['resident_id'],
+            'decision'           => $old['decision'],
+            'has_capacity'       => isset($in['has_capacity'])
+                                        ? ($in['has_capacity'] ? 1 : 0)
+                                        : (int) $old['has_capacity'],
+            'assessment_summary' => array_key_exists('assessment_summary', $in)
+                                        ? (trim((string) $in['assessment_summary']) ?: null)
+                                        : $old['assessment_summary'],
+            'best_interests'     => array_key_exists('best_interests', $in)
+                                        ? (trim((string) $in['best_interests']) ?: null)
+                                        : $old['best_interests'],
+            'assessed_by'        => $staffId,
+            'review_due'         => array_key_exists('review_due', $in) ? $in['review_due'] : $old['review_due'],
+            'created_at'         => nowStr(),
+        ]
+    );
 
-        $stmt = $pdo->prepare(
-            'INSERT INTO capacity_assessments
-             (home_id, resident_id, decision, has_capacity, assessment_summary,
-              best_interests, assessed_by, review_due, version_no, status, supersedes_id, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        );
-        $stmt->execute([
-            (int) $old['home_id'],
-            (int) $old['resident_id'],
-            $old['decision'],
-            isset($in['has_capacity']) ? ($in['has_capacity'] ? 1 : 0) : (int) $old['has_capacity'],
-            array_key_exists('assessment_summary', $in)
-                ? (trim((string) $in['assessment_summary']) ?: null)
-                : $old['assessment_summary'],
-            array_key_exists('best_interests', $in)
-                ? (trim((string) $in['best_interests']) ?: null)
-                : $old['best_interests'],
-            $staffId,
-            array_key_exists('review_due', $in) ? $in['review_due'] : $old['review_due'],
-            (int) $old['version_no'] + 1,
-            'active',
-            $id,
-            nowStr(),
-        ]);
-        $newId = (int) $pdo->lastInsertId();
-        $pdo->commit();
-        respond(['id' => $newId, 'superseded' => $id]);
-    } catch (Throwable $e) {
-        $pdo->rollBack();
-        throw $e;
-    }
+    respond(['id' => $newId, 'superseded' => $id]);
 }
 
-function handleDelete(PDO $pdo, int $staffId, int $homeId): never
+function handleDelete(AuditedRepository $repo, PDO $pdo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
     }
     requireOwnedAssessment($pdo, $id, $homeId);
-    $pdo->prepare('UPDATE capacity_assessments SET deleted_at = ?, deleted_by = ? WHERE id = ?')
-        ->execute([nowStr(), $staffId, $id]);
+    $repo->softDelete('capacity_assessments', $id, 'capacity_assessment');
     respond(['deleted' => $id]);
 }

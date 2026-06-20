@@ -31,9 +31,14 @@ if (array_key_exists('role', $in)) {
     $sets[] = 'role = ?';
     $vals[] = $in['role'];
 }
+$shouldRevoke = false;
 if (array_key_exists('active', $in)) {
+    $newActive = !empty($in['active']) ? 1 : 0;
     $sets[] = 'active = ?';
-    $vals[] = !empty($in['active']) ? 1 : 0;
+    $vals[] = $newActive;
+    if ($newActive === 0) {
+        $shouldRevoke = true;
+    }
 }
 if (array_key_exists('monitoring_competency', $in)) {
     $sets[] = 'monitoring_competency = ?';
@@ -55,5 +60,9 @@ $vals[] = $id;
 $stmt = db()->prepare('UPDATE staff SET ' . implode(', ', $sets) . ' WHERE id = ?');
 $stmt->execute($vals);
 audit((int)$auth['sub'], 'update', 'staff', $id, implode(',', $sets));
+
+if ($shouldRevoke) {
+    revoke_staff_sessions($id);
+}
 
 respond(['ok' => true]);

@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS residents (
   next_of_kin   VARCHAR(120) NULL,
   next_of_kin_phone VARCHAR(40) NULL,
   active        TINYINT(1) NOT NULL DEFAULT 1,
+  processing_restricted TINYINT(1) NOT NULL DEFAULT 0,
+  pseudonymised_at DATETIME NULL,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (home_id) REFERENCES homes(id),
   INDEX (home_id, active)
@@ -241,12 +243,41 @@ CREATE TABLE IF NOT EXISTS staff_competency_records (
 CREATE TABLE IF NOT EXISTS audit_log (
   id          BIGINT AUTO_INCREMENT PRIMARY KEY,
   staff_id    INT NULL,
+  home_id     INT NULL,
   action      VARCHAR(80) NOT NULL,
   entity      VARCHAR(40) NOT NULL,
   entity_id   INT NULL,
   ip_address  VARCHAR(45) NULL,
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  before_json JSON NULL,
+  after_json  JSON NULL,
   detail      TEXT NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX (entity, entity_id),
   INDEX (created_at)
 ) ENGINE=InnoDB;
+
+-- Brute-force / rate-limit tracking (DB-backed, no Redis required).
+CREATE TABLE IF NOT EXISTS auth_throttle (
+  scope              VARCHAR(40)  NOT NULL,
+  identifier         VARCHAR(255) NOT NULL,
+  attempts           INT          NOT NULL DEFAULT 0,
+  window_started_at  DATETIME     NOT NULL,
+  locked_until       DATETIME     NULL,
+  updated_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (scope, identifier)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS gdpr_requests (
+  id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+  home_id      INT NOT NULL,
+  resident_id  INT NOT NULL,
+  type         ENUM('access','restriction','unrestriction','erasure') NOT NULL,
+  performed_by INT NULL,
+  detail       TEXT NULL,
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (home_id) REFERENCES homes(id),
+  FOREIGN KEY (resident_id) REFERENCES residents(id),
+  FOREIGN KEY (performed_by) REFERENCES staff(id),
+  INDEX (home_id, created_at),
+  INDEX (resident_id, created_at)
+) ENGINE=InnoDB;
+

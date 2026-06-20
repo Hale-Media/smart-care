@@ -31,9 +31,10 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _submitPassword() async {
     if (!_formKey.currentState!.validate()) return;
-    final ok = await context
-        .read<AuthProvider>()
-        .login(_email.text.trim(), _password.text);
+    final ok = await context.read<AuthProvider>().login(
+      _email.text.trim(),
+      _password.text,
+    );
     if (!ok && mounted) _showError();
   }
 
@@ -63,11 +64,14 @@ class _LoginScreenState extends State<LoginScreen>
                   const SizedBox(height: 24),
                   Image.asset('assets/images/logo.png', height: 80),
                   const SizedBox(height: 12),
-                  const Text(AppConfig.appName,
-                      style:
-                          TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                  const Text('Care home resident monitoring',
-                      style: TextStyle(color: Colors.black54)),
+                  const Text(
+                    AppConfig.appName,
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
+                  const Text(
+                    'Care home resident monitoring',
+                    style: TextStyle(color: Colors.black54),
+                  ),
                   const SizedBox(height: 24),
                   Card(
                     child: Padding(
@@ -77,6 +81,9 @@ class _LoginScreenState extends State<LoginScreen>
                           TabBar(
                             controller: _tabs,
                             labelColor: AppTheme.primary,
+                            unselectedLabelColor: Colors.black54,
+                            indicatorColor: AppTheme.primary,
+                            dividerColor: Colors.transparent,
                             tabs: const [
                               Tab(text: 'Password'),
                               Tab(text: 'Quick PIN'),
@@ -86,10 +93,7 @@ class _LoginScreenState extends State<LoginScreen>
                             height: 260,
                             child: TabBarView(
                               controller: _tabs,
-                              children: [
-                                _passwordForm(auth),
-                                _pinForm(auth),
-                              ],
+                              children: [_passwordForm(auth), _pinForm(auth)],
                             ),
                           ),
                         ],
@@ -100,8 +104,10 @@ class _LoginScreenState extends State<LoginScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text('New to Care Package?',
-                          style: TextStyle(color: Colors.black54)),
+                      const Text(
+                        'New to Care Package?',
+                        style: TextStyle(color: Colors.black54),
+                      ),
                       TextButton(
                         onPressed: () => Navigator.of(context).push(
                           MaterialPageRoute(
@@ -132,7 +138,9 @@ class _LoginScreenState extends State<LoginScreen>
               controller: _email,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
-                  labelText: 'Email', prefixIcon: Icon(Icons.email_outlined)),
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
               validator: Validators.email,
             ),
             const SizedBox(height: 12),
@@ -140,7 +148,9 @@ class _LoginScreenState extends State<LoginScreen>
               controller: _password,
               obscureText: true,
               decoration: const InputDecoration(
-                  labelText: 'Password', prefixIcon: Icon(Icons.lock_outline)),
+                labelText: 'Password',
+                prefixIcon: Icon(Icons.lock_outline),
+              ),
               validator: (v) => Validators.required(v, 'Password'),
             ),
             const SizedBox(height: 20),
@@ -151,7 +161,10 @@ class _LoginScreenState extends State<LoginScreen>
                       height: 22,
                       width: 22,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Text('Sign in'),
             ),
           ],
@@ -165,8 +178,10 @@ class _LoginScreenState extends State<LoginScreen>
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         children: [
-          const Text('Enter your 4–6 digit shift PIN',
-              style: TextStyle(color: Colors.black54)),
+          const Text(
+            'Enter your 4–6 digit shift PIN',
+            style: TextStyle(color: Colors.black54),
+          ),
           const SizedBox(height: 16),
           TextFormField(
             controller: _pin,

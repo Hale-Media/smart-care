@@ -3,9 +3,17 @@
 require __DIR__ . '/../config.php';
 
 $in = json_input();
-$email = trim($in['email'] ?? '');
+$email = strtolower(trim($in['email'] ?? ''));
 $password = $in['password'] ?? '';
 if ($email === '' || $password === '') fail('Email and password required');
+
+// ── Brute-force protection, keyed on the account (not IP — care homes
+// share one public IP, so an IP lock would freeze the whole shift). ──
+$rl  = new RateLimiter(db(), 'login', 5, 900, 900);   // 5 / 15 min, 15 min lock
+$key = 'login:' . $email;
+if (($wait = $rl->lockedFor($key)) !== null) {
+    fail('Too many attempts. Try again in ' . (int) ceil($wait / 60) . ' minute(s).', 429);
+}
 
 $stmt = db()->prepare(
     'SELECT s.*, h.name AS home_name
@@ -16,9 +24,14 @@ $stmt = db()->prepare(
 $stmt->execute([$email]);
 $user = $stmt->fetch();
 
-if (!$user || !password_verify($password, $user['password_hash'])) {
+// Equalise timing whether or not the account exists (valid bcrypt dummy, so
+// the verify does real work and can't be distinguished by response time).
+$hash = $user['password_hash'] ?? '$2y$10$AC0UnYpopD7karWAfTQ4Bupg0DyjDW8LS20ecv0mtWqk0BZoHPQdK';
+if (!password_verify($password, $hash) || !$user) {
+    $rl->recordFailure($key);
     fail('Invalid credentials', 401);
 }
+$rl->recordSuccess($key);
 
 $canSwitch = ((int)($user['can_switch_homes'] ?? 0) === 1) || $user['role'] === 'admin';
 
@@ -28,9 +41,10 @@ $token = jwt_encode([
     'home'       => (int)$user['home_id'],
     'role'       => $user['role'],
     'can_switch' => $canSwitch,
+    'tv'         => (int)($user['token_version'] ?? 1),   // session revocation
 ]);
 
-audit((int)$user['id'], 'login', 'staff', (int)$user['id']);
+audit((int)$user['id'], 'login', 'staff', (int)$user['id'], null, (int)$user['home_id']);
 
 respond([
     'token' => $token,

@@ -6,6 +6,7 @@ import '../homes/homes_management_screen.dart';
 import '../staff/staff_management_screen.dart';
 import '../compliance/compliance_dashboard_screen.dart';
 import 'cqc_screen.dart';
+import 'gdpr_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -31,12 +32,22 @@ class SettingsScreen extends StatelessWidget {
             title: Text('Alert notifications'),
             subtitle: Text('Critical alerts use full-screen intent'),
           ),
-          const ListTile(
-            leading: Icon(Icons.security_outlined),
-            title: Text('Data protection'),
-            subtitle: Text('UK GDPR compliant · audit logged'),
-          ),
-          const AboutListTile(
+          if (user != null && user.role.canManage)
+            ListTile(
+              leading: const Icon(Icons.security_outlined),
+              title: const Text('Data protection'),
+              subtitle: const Text('Subject access, restriction and erasure logs'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const GdprScreen()),
+              ),
+            )
+          else
+            const ListTile(
+              leading: Icon(Icons.security_outlined),
+              title: Text('Data protection'),
+              subtitle: Text('UK GDPR compliant and audit logged'),
+            ),          const AboutListTile(
             icon: Icon(Icons.info_outline),
             applicationName: AppConfig.appName,
             applicationVersion: AppConfig.appVersion,
@@ -104,3 +115,4 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
+

@@ -6,24 +6,20 @@ declare(strict_types=1);
  *
  * GET    ?resident_id=1                         -> active assessments
  * GET    ?resident_id=1&type=waterlow&history=1 -> version history for a tool
- * POST   {resident_id, type, risk_level, ...}   -> record an assessment
- * PUT    ?id=5 {risk_level, total_score, ...}    -> re-assessment = supersede
- * DELETE ?id=5                                   -> soft delete
+ * POST   {resident_id, type, risk_level, ...}   -> record an assessment  (senior+ only)
+ * PUT    ?id=5 {risk_level, total_score, ...}    -> re-assessment = supersede  (senior+ only)
+ * DELETE ?id=5                                   -> soft delete  (senior+ only)
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/AuditedRepository.php';
 
 header('Content-Type: application/json');
 
-$jwt  = require_auth();
-$pdo  = db();
-$repo = new AuditedRepository(
-    $pdo,
-    (int) $jwt['sub'],
-    (int) $jwt['home'],
-    $_SERVER['REMOTE_ADDR'] ?? null
-);
+$jwt     = require_auth();
+$pdo     = db();
+$staffId = (int) $jwt['staff_id'];
+$homeId  = (int) $jwt['home_id'];
+$repo    = new AuditedRepository($pdo, $staffId, $homeId, $_SERVER['REMOTE_ADDR'] ?? null);
 
 const RISK_TYPES  = [
     'falls', 'waterlow', 'purpose_t', 'must', 'moving_handling',
@@ -33,10 +29,10 @@ const RISK_LEVELS = ['low', 'medium', 'high', 'very_high'];
 
 try {
     match ($_SERVER['REQUEST_METHOD']) {
-        'GET'          => handleGet($pdo, $jwt),
-        'POST'         => handleCreate($pdo, $repo, $jwt),
-        'PUT', 'PATCH' => handleReview($pdo, $repo, $jwt),
-        'DELETE'       => handleDelete($pdo, $repo, $jwt),
+        'GET'          => handleGet($pdo, $homeId),
+        'POST'         => handleCreate($pdo, $repo, $staffId, $homeId, $jwt),
+        'PUT', 'PATCH' => handleReview($pdo, $repo, $staffId, $homeId, $jwt),
+        'DELETE'       => handleDelete($pdo, $repo, $homeId, $jwt),
         default        => respond(['error' => 'Method not allowed'], 405),
     };
 } catch (Throwable $e) {
@@ -47,13 +43,13 @@ try {
 // Handlers
 // =====================================================================
 
-function handleGet(PDO $pdo, array $jwt): never
+function handleGet(PDO $pdo, int $homeId): never
 {
     $residentId = (int) ($_GET['resident_id'] ?? 0);
     if ($residentId <= 0) {
         respond(['error' => 'resident_id is required'], 422);
     }
-    requireResidentInHome($pdo, $residentId, (int) $jwt['home']);
+    requireResidentInHome($pdo, $residentId, $homeId);
 
     if (!empty($_GET['history'])) {
         $type = (string) ($_GET['type'] ?? '');
@@ -78,8 +74,10 @@ function handleGet(PDO $pdo, array $jwt): never
     respond(['assessments' => decodeDetail($stmt->fetchAll(PDO::FETCH_ASSOC))]);
 }
 
-function handleCreate(PDO $pdo, AuditedRepository $repo, array $jwt): never
+function handleCreate(PDO $pdo, AuditedRepository $repo, int $staffId, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $in         = json_input();
     $residentId = (int) ($in['resident_id'] ?? 0);
     $type       = (string) ($in['type'] ?? '');
@@ -92,10 +90,10 @@ function handleCreate(PDO $pdo, AuditedRepository $repo, array $jwt): never
     if ($errors) {
         respond(['errors' => $errors], 422);
     }
-    requireResidentInHome($pdo, $residentId, (int) $jwt['home']);
+    requireResidentInHome($pdo, $residentId, $homeId);
 
     $id = $repo->insert('risk_assessments', [
-        'home_id'      => (int) $jwt['home'],
+        'home_id'      => $homeId,
         'resident_id'  => $residentId,
         'type'         => $type,
         'tool_version' => trim((string) ($in['tool_version'] ?? '')) ?: null,
@@ -103,24 +101,26 @@ function handleCreate(PDO $pdo, AuditedRepository $repo, array $jwt): never
         'risk_level'   => $riskLevel,
         'detail'       => encodeDetail($in['detail'] ?? null),
         'summary'      => trim((string) ($in['summary'] ?? '')) ?: null,
-        'assessed_by'  => (int) $jwt['sub'],
+        'assessed_by'  => $staffId,
         'review_due'   => $in['review_due'] ?? null,
         'version_no'   => 1,
         'status'       => 'active',
-        'created_by'   => (int) $jwt['sub'],
+        'created_by'   => $staffId,
     ], 'risk_assessment');
 
     respond(['id' => $id], 201);
 }
 
-function handleReview(PDO $pdo, AuditedRepository $repo, array $jwt): never
+function handleReview(PDO $pdo, AuditedRepository $repo, int $staffId, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     $in = json_input();
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
     }
-    $old = requireOwnedAssessment($pdo, $id, (int) $jwt['home']);
+    $old = requireOwnedAssessment($pdo, $id, $homeId);
     if ($old['status'] !== 'active') {
         respond(['error' => 'only the active version can be re-assessed'], 409);
     }
@@ -147,22 +147,24 @@ function handleReview(PDO $pdo, AuditedRepository $repo, array $jwt): never
                                 ? encodeDetail($in['detail'])
                                 : $old['detail'],
             'summary'      => $in['summary'] ?? $old['summary'],
-            'assessed_by'  => (int) $jwt['sub'],
+            'assessed_by'  => $staffId,
             'review_due'   => $in['review_due'] ?? null,
-            'created_by'   => (int) $jwt['sub'],
+            'created_by'   => $staffId,
         ]
     );
 
     respond(['id' => $newId, 'superseded' => $id]);
 }
 
-function handleDelete(PDO $pdo, AuditedRepository $repo, array $jwt): never
+function handleDelete(PDO $pdo, AuditedRepository $repo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
     }
-    requireOwnedAssessment($pdo, $id, (int) $jwt['home']);
+    requireOwnedAssessment($pdo, $id, $homeId);
     $repo->softDelete('risk_assessments', $id, 'risk_assessment');
     respond(['deleted' => $id]);
 }

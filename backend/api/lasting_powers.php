@@ -5,18 +5,20 @@ declare(strict_types=1);
  * /api/lasting_powers.php — Smart Care
  *
  * GET    ?resident_id=1  -> all lasting powers / LPAs for a resident
- * POST   {resident_id, type, attorney_name, ...}  -> create
- * PUT    ?id=5 {...}     -> update
- * DELETE ?id=5           -> soft delete
+ * POST   {resident_id, type, attorney_name, ...}  -> create  (senior+ only)
+ * PUT    ?id=5 {...}     -> update                            (senior+ only)
+ * DELETE ?id=5           -> soft delete                       (senior+ only)
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/lib/AuditedRepository.php';
 
 header('Content-Type: application/json');
 
-$jwt = require_auth();
-$pdo = db();
+$jwt     = require_auth();
+$pdo     = db();
+$staffId = (int) $jwt['staff_id'];
+$homeId  = (int) $jwt['home_id'];
+$repo    = new AuditedRepository($pdo, $staffId, $homeId, $_SERVER['REMOTE_ADDR'] ?? null);
 
 const LP_TYPES = ['lpa_health', 'lpa_property', 'deputy', 'appointee'];
 
@@ -55,14 +57,11 @@ function requireOwnedLp(PDO $pdo, int $id, int $homeId): array
 }
 
 try {
-    $staffId = (int) $jwt['sub'];
-    $homeId  = (int) $jwt['home'];
-
     match ($_SERVER['REQUEST_METHOD']) {
         'GET'          => handleGet($pdo, $homeId),
-        'POST'         => handleCreate($pdo, $staffId, $homeId),
-        'PUT', 'PATCH' => handleUpdate($pdo, $staffId, $homeId),
-        'DELETE'       => handleDelete($pdo, $staffId, $homeId),
+        'POST'         => handleCreate($repo, $pdo, $staffId, $homeId, $jwt),
+        'PUT', 'PATCH' => handleUpdate($repo, $pdo, $homeId, $jwt),
+        'DELETE'       => handleDelete($repo, $pdo, $homeId, $jwt),
         default        => respond(['error' => 'Method not allowed'], 405),
     };
 } catch (Throwable $e) {
@@ -86,46 +85,44 @@ function handleGet(PDO $pdo, int $homeId): never
     respond(['lasting_powers' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 }
 
-function handleCreate(PDO $pdo, int $staffId, int $homeId): never
+function handleCreate(AuditedRepository $repo, PDO $pdo, int $staffId, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $in           = input();
     $residentId   = (int) ($in['resident_id'] ?? 0);
     $type         = (string) ($in['type'] ?? '');
     $attorneyName = trim((string) ($in['attorney_name'] ?? ''));
 
     $errors = [];
-    if ($residentId <= 0)                         $errors[] = 'resident_id is required';
-    if (!in_array($type, LP_TYPES, true))         $errors[] = 'invalid type';
-    if ($attorneyName === '')                      $errors[] = 'attorney_name is required';
+    if ($residentId <= 0)                 $errors[] = 'resident_id is required';
+    if (!in_array($type, LP_TYPES, true)) $errors[] = 'invalid type';
+    if ($attorneyName === '')             $errors[] = 'attorney_name is required';
     if ($errors) {
         respond(['errors' => $errors], 422);
     }
     requireResidentInHome($pdo, $residentId, $homeId);
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO lasting_powers
-         (home_id, resident_id, type, attorney_name, attorney_contact,
-          registered, reference, notes, recorded_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-    $stmt->execute([
-        $homeId,
-        $residentId,
-        $type,
-        $attorneyName,
-        trim((string) ($in['attorney_contact'] ?? '')) ?: null,
-        isset($in['registered']) && $in['registered'] ? 1 : 0,
-        trim((string) ($in['reference'] ?? '')) ?: null,
-        trim((string) ($in['notes'] ?? '')) ?: null,
-        $staffId,
-        nowStr(),
-    ]);
-    $id = (int) $pdo->lastInsertId();
+    $id = $repo->insert('lasting_powers', [
+        'home_id'          => $homeId,
+        'resident_id'      => $residentId,
+        'type'             => $type,
+        'attorney_name'    => $attorneyName,
+        'attorney_contact' => trim((string) ($in['attorney_contact'] ?? '')) ?: null,
+        'registered'       => isset($in['registered']) && $in['registered'] ? 1 : 0,
+        'reference'        => trim((string) ($in['reference'] ?? '')) ?: null,
+        'notes'            => trim((string) ($in['notes'] ?? '')) ?: null,
+        'recorded_by'      => $staffId,
+        'created_at'       => nowStr(),
+    ], 'lasting_power');
+
     respond(['id' => $id], 201);
 }
 
-function handleUpdate(PDO $pdo, int $staffId, int $homeId): never
+function handleUpdate(AuditedRepository $repo, PDO $pdo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
@@ -133,36 +130,34 @@ function handleUpdate(PDO $pdo, int $staffId, int $homeId): never
     requireOwnedLp($pdo, $id, $homeId);
     $in = input();
 
-    $fields = [];
-    $params = [];
-
-    $allowed = ['type', 'attorney_name', 'attorney_contact', 'registered', 'reference', 'notes'];
-    foreach ($allowed as $col) {
-        if (array_key_exists($col, $in)) {
-            $fields[] = "$col = ?";
-            $params[] = $col === 'registered' ? ($in[$col] ? 1 : 0) : $in[$col];
-        }
-    }
     if (isset($in['type']) && !in_array($in['type'], LP_TYPES, true)) {
         respond(['error' => 'invalid type'], 422);
     }
-    if (empty($fields)) {
+
+    $data    = [];
+    $allowed = ['type', 'attorney_name', 'attorney_contact', 'registered', 'reference', 'notes'];
+    foreach ($allowed as $col) {
+        if (array_key_exists($col, $in)) {
+            $data[$col] = ($col === 'registered') ? ($in[$col] ? 1 : 0) : $in[$col];
+        }
+    }
+    if (empty($data)) {
         respond(['error' => 'no fields to update'], 422);
     }
-    $params[] = $id;
-    $pdo->prepare('UPDATE lasting_powers SET ' . implode(', ', $fields) . ' WHERE id = ?')
-        ->execute($params);
+
+    $repo->update('lasting_powers', $id, $data, 'lasting_power');
     respond(['updated' => $id]);
 }
 
-function handleDelete(PDO $pdo, int $staffId, int $homeId): never
+function handleDelete(AuditedRepository $repo, PDO $pdo, int $homeId, array $jwt): never
 {
+    requireSenior($jwt);
+
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) {
         respond(['error' => 'id is required'], 422);
     }
     requireOwnedLp($pdo, $id, $homeId);
-    $pdo->prepare('UPDATE lasting_powers SET deleted_at = ?, deleted_by = ? WHERE id = ?')
-        ->execute([nowStr(), $staffId, $id]);
+    $repo->softDelete('lasting_powers', $id, 'lasting_power');
     respond(['deleted' => $id]);
 }

@@ -312,11 +312,21 @@ class _RaiseConcernSheetState extends State<_RaiseConcernSheet> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Text(
-                    'Raise safeguarding concern',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  const Expanded(
+                    child: Text(
+                      'Raise safeguarding concern',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ),
+                  const SizedBox(width: 12),
                   FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                    ),
                     onPressed: _saving ? null : _save,
                     child: _saving
                         ? const SizedBox(
@@ -469,14 +479,21 @@ class _ActionSheetState extends State<_ActionSheet> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    _title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                  Expanded(
+                    child: Text(
+                      _title,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 12),
                   FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                    ),
                     onPressed: _saving ? null : _save,
                     child: _saving
                         ? const SizedBox(
