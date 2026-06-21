@@ -20,6 +20,14 @@ if (!$own->fetch()) fail('Staff member not found in your company', 404);
 
 $sets = [];
 $vals = [];
+if (array_key_exists('home_id', $in)) {
+    $newHomeId = (int)$in['home_id'];
+    $hCheck = db()->prepare('SELECT id FROM homes WHERE id = ? AND company_id = ?');
+    $hCheck->execute([$newHomeId, $companyId]);
+    if (!$hCheck->fetch()) fail('Home not found in your company', 404);
+    $sets[] = 'home_id = ?';
+    $vals[] = $newHomeId;
+}
 if (array_key_exists('can_switch_homes', $in)) {
     $sets[] = 'can_switch_homes = ?';
     $vals[] = !empty($in['can_switch_homes']) ? 1 : 0;
