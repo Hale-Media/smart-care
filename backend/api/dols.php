@@ -19,13 +19,12 @@ header('Content-Type: application/json');
 
 $jwt     = require_auth();
 $pdo     = db();
-$staffId = (int) $jwt['sub'];
-$homeId  = (int) $jwt['home'];
+$staffId = (int) $jwt['staff_id'];
+$homeId  = (int) $jwt['home_id'];
 $repo    = new AuditedRepository($pdo, $staffId, $homeId, $_SERVER['REMOTE_ADDR'] ?? null);
 
 const DOLS_STATUSES = ['not_required','urgent','applied','granted','declined','expired','ended'];
 const DOLS_FIELDS   = ['status','urgent','reference','supervisory_body','applied_on','granted_on','expires_on','conditions','notes'];
-const SENIOR_ROLES  = ['seniorCarer','nurse','manager','admin'];
 
 try {
     match ($_SERVER['REQUEST_METHOD']) {
@@ -37,12 +36,6 @@ try {
     };
 } catch (Throwable $e) {
     respond(['error' => 'Server error', 'detail' => $e->getMessage()], 500); // strip detail in prod
-}
-
-function requireSenior(array $jwt): void {
-    if (!in_array($jwt['role'] ?? '', SENIOR_ROLES, true)) {
-        respond(['error' => 'this action requires a senior role'], 403);
-    }
 }
 
 function requireResidentInHome(PDO $pdo, int $residentId, int $homeId): void {
@@ -123,7 +116,7 @@ function handleCreate(PDO $pdo, AuditedRepository $repo, array $jwt, int $homeId
     }
     requireResidentInHome($pdo, $residentId, $homeId);
 
-    $row = ['home_id' => $homeId, 'resident_id' => $residentId, 'recorded_by' => (int) $jwt['sub']];
+    $row = ['home_id' => $homeId, 'resident_id' => $residentId, 'recorded_by' => (int) $jwt['staff_id']];
     $row += pick($in, DOLS_FIELDS);
     $row['status'] = $status;
     $row['urgent'] = !empty($in['urgent']) ? 1 : 0;

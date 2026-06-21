@@ -1,3 +1,5 @@
+// ignore_for_file: use_null_aware_elements
+
 import '../models/advance_decision.dart';
 import 'api_client.dart';
 
@@ -33,8 +35,8 @@ class AdvanceDecisionService {
         'form_reference': formReference,
       if (completedBy != null && completedBy.isNotEmpty)
         'completed_by': completedBy,
-      'date_completed': ?dateCompleted,
-      'review_date': ?reviewDate,
+      if (dateCompleted != null) 'date_completed': dateCompleted,
+      if (reviewDate != null) 'review_date': reviewDate,
       if (location != null && location.isNotEmpty) 'location': location,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
     });

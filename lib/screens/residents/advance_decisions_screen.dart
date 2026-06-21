@@ -336,6 +336,9 @@ class _AdFormSheetState extends State<_AdFormSheet> {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                   FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(64, 44),
+                    ),
                     onPressed: _saving ? null : _save,
                     child: _saving
                         ? const SizedBox(

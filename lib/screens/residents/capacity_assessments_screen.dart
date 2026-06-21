@@ -559,6 +559,9 @@ class _FormSheetBody extends StatelessWidget {
                     ),
                   ),
                   FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(64, 44),
+                    ),
                     onPressed: saving ? null : onSave,
                     child: saving
                         ? const SizedBox(
