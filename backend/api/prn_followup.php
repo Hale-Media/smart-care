@@ -16,7 +16,7 @@ require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json');
 
 $jwt  = require_auth();
-$repo = new AuditedRepository($pdo, (int) $jwt['staff_id'], (int) $jwt['home_id'], $_SERVER['REMOTE_ADDR'] ?? null);
+$repo = new AuditedRepository($pdo, (int) $jwt['sub'], (int) $jwt['home'], $_SERVER['REMOTE_ADDR'] ?? null);
 
 const PRN_EFFECTS = ['effective', 'partial', 'not_effective'];
 
@@ -38,7 +38,7 @@ function handlePending(PDO $pdo, array $jwt): never
     if ($residentId <= 0) {
         respond(422, ['error' => 'resident_id is required']);
     }
-    requireResidentInHome($pdo, $residentId, (int) $jwt['home_id']);
+    requireResidentInHome($pdo, $residentId, (int) $jwt['home']);
 
     $stmt = $pdo->prepare(
         "SELECT e.id, e.medication_id, e.administered_at, e.prn_indication,
@@ -64,7 +64,7 @@ function handleRecord(PDO $pdo, AuditedRepository $repo, array $jwt): never
         respond(422, ['error' => 'effect must be effective, partial or not_effective']);
     }
 
-    $entry = requireOwnedMarEntry($pdo, $id, (int) $jwt['home_id']);
+    $entry = requireOwnedMarEntry($pdo, $id, (int) $jwt['home']);
     if (($entry['prn_effect'] ?? null) !== 'pending') {
         respond(409, ['error' => 'this dose has no pending follow-up']);
     }
@@ -72,7 +72,7 @@ function handleRecord(PDO $pdo, AuditedRepository $repo, array $jwt): never
     $repo->update('mar_entries', $id, [
         'prn_effect'         => $effect,
         'prn_followup_at'    => nowStr(),
-        'prn_followup_by'    => (int) $jwt['staff_id'],
+        'prn_followup_by'    => (int) $jwt['sub'],
         'prn_followup_notes' => trim((string) ($in['notes'] ?? '')) ?: null,
     ], 'mar_entry');
 

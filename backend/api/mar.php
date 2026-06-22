@@ -20,7 +20,7 @@ require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json');
 
 $jwt  = require_auth();
-$repo = new AuditedRepository($pdo, (int) $jwt['staff_id'], (int) $jwt['home_id'], $_SERVER['REMOTE_ADDR'] ?? null);
+$repo = new AuditedRepository($pdo, (int) $jwt['sub'], (int) $jwt['home'], $_SERVER['REMOTE_ADDR'] ?? null);
 
 const MAR_OUTCOMES   = ['given','refused','omitted','unavailable','asleep','hospital'];
 const WITNESS_ROLES  = ['seniorCarer','nurse','manager','admin'];
@@ -43,7 +43,7 @@ function handleDue(PDO $pdo, array $jwt): never
     if ($residentId <= 0) {
         respond(422, ['error' => 'resident_id is required']);
     }
-    requireResidentInHome($pdo, $residentId, (int) $jwt['home_id']);
+    requireResidentInHome($pdo, $residentId, (int) $jwt['home']);
 
     $stmt = $pdo->prepare(
         "SELECT e.id, e.medication_id, e.scheduled_for, e.outcome,
@@ -64,8 +64,8 @@ function handleAdminister(PDO $pdo, AuditedRepository $repo, array $jwt): never
     $marId   = (int) ($in['mar_entry_id'] ?? 0);
     $medId   = (int) ($in['medication_id'] ?? 0);
     $outcome = (string) ($in['outcome'] ?? 'given');
-    $homeId  = (int) $jwt['home_id'];
-    $staffId = (int) $jwt['staff_id'];
+    $homeId  = (int) $jwt['home'];
+    $staffId = (int) $jwt['sub'];
 
     if (!in_array($outcome, MAR_OUTCOMES, true)) {
         respond(422, ['error' => 'invalid outcome']);
