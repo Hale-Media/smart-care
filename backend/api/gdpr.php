@@ -10,8 +10,7 @@ declare(strict_types=1);
  * POST ?resident_id=1&action=erase       -> pseudonymise identifiers
  */
 
-require_once __DIR__ . '/../config.php';
-require_once __DIR__ . '/lib/AuditedRepository.php';
+require_once __DIR__ . '/config.php';
 
 header('Content-Type: application/json');
 

@@ -1,6 +1,6 @@
 <?php
 // POST /handover/create.php
-require __DIR__ . '/../../config.php';
+require __DIR__ . '/../config.php';
 $auth = require_auth();
 $in = json_input();
 
