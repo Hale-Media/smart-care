@@ -8,6 +8,7 @@ import '../../models/resident.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/medication_service.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 import '../../widgets/common/status_pill.dart';
 
@@ -24,6 +25,7 @@ class _MedicationScreenState extends State<MedicationScreen>
   List<Medication> _meds = [];
   List<MarEntry> _todayEntries = [];
   bool _loading = true;
+  String? _error;
   late final TabController _tab;
 
   @override
@@ -40,7 +42,7 @@ class _MedicationScreenState extends State<MedicationScreen>
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
       final now = DateTime.now();
       final results = await Future.wait([
@@ -53,11 +55,13 @@ class _MedicationScreenState extends State<MedicationScreen>
       ]);
       _meds = results[0] as List<Medication>;
       _todayEntries = results[1] as List<MarEntry>;
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _openAdministerPage(Medication med) async {
+  Future<void> _openAdministerPage(Medication med, {String? scheduledTime}) async {
     final user = context.read<AuthProvider>().user;
     final saved = await Navigator.push<bool>(
       context,
@@ -67,6 +71,7 @@ class _MedicationScreenState extends State<MedicationScreen>
           staffId: user?.id ?? 0,
           staffName: user?.name ?? '',
           service: _service,
+          scheduledTime: scheduledTime,
         ),
       ),
     );
@@ -135,7 +140,9 @@ class _MedicationScreenState extends State<MedicationScreen>
       ),
       body: _loading
           ? const LoadingView()
-          : TabBarView(
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : TabBarView(
               controller: _tab,
               children: [
                 _buildMedicationsList(),
@@ -181,9 +188,12 @@ class _MedicationScreenState extends State<MedicationScreen>
         final slotMin = int.tryParse(parts[1]) ?? 0;
         final isOverdue = slotHour < now.hour ||
             (slotHour == now.hour && slotMin <= now.minute);
-        // Find a matching entry for this medication recorded today.
+        // Match entry by medication AND the exact scheduled slot time.
         final entry = _todayEntries
-            .where((e) => e.medicationId == med.id)
+            .where((e) =>
+                e.medicationId == med.id &&
+                e.scheduledFor.hour == slotHour &&
+                e.scheduledFor.minute == slotMin)
             .cast<MarEntry?>()
             .firstWhere((_) => true, orElse: () => null);
         slots.add(_ScheduleSlot(
@@ -263,7 +273,7 @@ class _MedicationScreenState extends State<MedicationScreen>
         subtitle: Text('${s.time}  ·  $statusLabel'),
         trailing: s.entry == null
             ? TextButton(
-                onPressed: () => _openAdministerPage(s.medication),
+                onPressed: () => _openAdministerPage(s.medication, scheduledTime: s.time),
                 child: const Text('Give'),
               )
             : null,
@@ -357,6 +367,7 @@ class _MarHistoryPage extends StatefulWidget {
 class _MarHistoryPageState extends State<_MarHistoryPage> {
   List<MarEntry> _entries = [];
   bool _loading = true;
+  String? _error;
   DateTime _from = DateTime.now().subtract(const Duration(days: 7));
   DateTime _to = DateTime.now();
 
@@ -367,14 +378,16 @@ class _MarHistoryPageState extends State<_MarHistoryPage> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
       _entries = await widget.service.marHistory(
         residentId: widget.resident.id,
         from: DateTime(_from.year, _from.month, _from.day),
         to: DateTime(_to.year, _to.month, _to.day, 23, 59),
       );
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -411,12 +424,14 @@ class _MarHistoryPageState extends State<_MarHistoryPage> {
       ),
       body: _loading
           ? const LoadingView()
-          : _entries.isEmpty
-              ? const EmptyState(
-                  icon: Icons.history,
-                  title: 'No entries found',
-                  subtitle: 'Try a different date range.')
-              : ListView.builder(
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _entries.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.history,
+                      title: 'No entries found',
+                      subtitle: 'Try a different date range.')
+                  : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
                   itemCount: _entries.length,
                   itemBuilder: (_, i) => _entryTile(_entries[i]),
@@ -466,11 +481,13 @@ class _AdministerPage extends StatefulWidget {
   final int staffId;
   final String staffName;
   final MedicationService service;
+  final String? scheduledTime;
   const _AdministerPage({
     required this.medication,
     required this.staffId,
     required this.staffName,
     required this.service,
+    this.scheduledTime,
   });
   @override
   State<_AdministerPage> createState() => _AdministerPageState();
@@ -489,14 +506,34 @@ class _AdministerPageState extends State<_AdministerPage> {
     super.dispose();
   }
 
+  DateTime _resolveScheduledFor() {
+    final t = widget.scheduledTime;
+    if (t == null) return DateTime.now().toUtc();
+    final parts = t.split(':');
+    if (parts.length != 2) return DateTime.now().toUtc();
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return DateTime.now().toUtc();
+    // Slot times in m.times are stored as UTC strings on the server.
+    // Build a UTC datetime so the backend's slot-time lookup matches.
+    final today = DateTime.now().toUtc();
+    return DateTime.utc(today.year, today.month, today.day, h, m);
+  }
+
   Future<void> _submit() async {
+    if (widget.medication.controlledDrug && _witness.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Witness name is required for controlled drugs')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     final now = DateTime.now();
     final entry = MarEntry(
       id: 0,
       medicationId: widget.medication.id,
       residentId: widget.medication.residentId,
-      scheduledFor: now,
+      scheduledFor: _resolveScheduledFor(),
       administeredAt: now,
       administeredByStaffId: widget.staffId,
       administeredByName: widget.staffName,

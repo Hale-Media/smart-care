@@ -65,6 +65,18 @@ class _ResidentsScreenState extends State<ResidentsScreen>
       ),
       body: Column(
         children: [
+          if (provider.isStale)
+            MaterialBanner(
+              content: const Text('Showing cached data — offline or server unreachable'),
+              leading: const Icon(Icons.cloud_off, color: AppTheme.warning),
+              backgroundColor: AppTheme.warning.withValues(alpha: 0.12),
+              actions: [
+                TextButton(
+                  onPressed: provider.load,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
@@ -159,11 +171,27 @@ class _ResidentTile extends StatelessWidget {
   final bool homeCare;
   const _ResidentTile({required this.resident, this.homeCare = false});
 
+  bool get _reviewOverdue {
+    final d = resident.outcomeReviewDate;
+    return d != null && d.isBefore(DateTime.now());
+  }
+
   @override
   Widget build(BuildContext context) {
     final subtitle = homeCare
         ? '${resident.address ?? 'No address'} · Age ${resident.age ?? '—'}'
         : 'Room ${resident.roomNumber ?? '—'} · ${Labels.careLevel(resident.careLevel)} · Age ${resident.age ?? '—'}';
+
+    final chips = <Widget>[
+      if (resident.dnacpr)
+        const StatusPill(label: 'DNACPR', severity: 'high'),
+      if (resident.fallRisk == 'high')
+        const StatusPill(label: 'FALL RISK', severity: 'high'),
+      if (resident.nutritionRisk == 'high')
+        const StatusPill(label: 'NUTRITION', severity: 'medium'),
+      if (_reviewOverdue)
+        const StatusPill(label: 'REVIEW DUE', severity: 'medium'),
+    ];
 
     return Card(
       child: ListTile(
@@ -180,10 +208,18 @@ class _ResidentTile extends StatelessWidget {
         ),
         title: Text(resident.fullName,
             style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(subtitle),
-        trailing: resident.fallRisk == 'high'
-            ? const StatusPill(label: 'FALL RISK', severity: 'high')
-            : const Icon(Icons.chevron_right),
+        subtitle: chips.isEmpty
+            ? Text(subtitle)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(subtitle),
+                  const SizedBox(height: 4),
+                  Wrap(spacing: 4, runSpacing: 4, children: chips),
+                ],
+              ),
+        isThreeLine: chips.isNotEmpty,
+        trailing: const Icon(Icons.chevron_right),
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => ResidentDetailScreen(resident: resident),
         )),

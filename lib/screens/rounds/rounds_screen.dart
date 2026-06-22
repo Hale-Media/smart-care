@@ -12,6 +12,7 @@ import '../../services/medication_service.dart';
 import '../../services/round_service.dart';
 import '../../utils/labels.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 
 /// Today's welfare/repositioning/continence rounds with completion tracking.
@@ -27,6 +28,7 @@ class _RoundsScreenState extends State<RoundsScreen> {
   List<CareRound> _rounds = [];
   List<DueMedication> _dueMeds = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -35,7 +37,7 @@ class _RoundsScreenState extends State<RoundsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     final now = DateTime.now();
     final from = DateTime(now.year, now.month, now.day);
     final to = DateTime(now.year, now.month, now.day, 23, 59);
@@ -47,7 +49,9 @@ class _RoundsScreenState extends State<RoundsScreen> {
       _rounds = (results[0] as List<CareRound>)
         ..sort((a, b) => a.dueAt.compareTo(b.dueAt));
       _dueMeds = results[1] as List<DueMedication>;
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -143,12 +147,14 @@ class _RoundsScreenState extends State<RoundsScreen> {
       ),
       body: _loading
           ? const LoadingView()
-          : _rounds.isEmpty && _dueMeds.isEmpty
-              ? const EmptyState(
-                  icon: Icons.checklist,
-                  title: 'No rounds scheduled',
-                  subtitle: 'Tap Schedule to add checks for today.')
-              : RefreshIndicator(
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _rounds.isEmpty && _dueMeds.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.checklist,
+                      title: 'No rounds scheduled',
+                      subtitle: 'Tap Schedule to add checks for today.')
+                  : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
@@ -166,9 +172,16 @@ class _RoundsScreenState extends State<RoundsScreen> {
   }
 
   Widget _progressHeader() {
-    final total = _rounds.length;
-    final done = _rounds.where((r) => r.isDone).length;
-    final overdue = _rounds.where((r) => r.isOverdue).length;
+    final roundTotal   = _rounds.length;
+    final roundDone    = _rounds.where((r) => r.isDone).length;
+    final roundOverdue = _rounds.where((r) => r.isOverdue).length;
+    final medTotal     = _dueMeds.length;
+    final medDone      = _dueMeds.where((m) => m.given).length;
+    final medOverdue   = _dueMeds.where((m) => m.isOverdue).length;
+
+    final total   = roundTotal + medTotal;
+    final done    = roundDone + medDone;
+    final overdue = roundOverdue + medOverdue;
     final progress = total == 0 ? 0.0 : done / total;
     final color = overdue > 0
         ? AppTheme.critical
@@ -331,6 +344,7 @@ class _RoundsScreenState extends State<RoundsScreen> {
   }
 
   Future<void> _give(DueMedication med) async {
+    final user = context.read<AuthProvider>().user;
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -342,11 +356,20 @@ class _RoundsScreenState extends State<RoundsScreen> {
         id: 0,
         medicationId: med.medicationId,
         residentId: med.residentId,
-        scheduledFor: med.scheduledFor,
+        // Convert to UTC so the server's slot-time lookup (stored in UTC) matches.
+        scheduledFor: med.scheduledFor.toUtc(),
+        administeredAt: DateTime.now().toUtc(),
+        administeredByStaffId: user?.id,
+        administeredByName: user?.name,
         outcome: MarOutcome.values.byName(result['outcome'] as String),
         witnessStaffName: result['witness'] as String?,
         notes: result['notes'] as String?,
       ));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('MAR entry recorded')),
+        );
+      }
       _load();
     } catch (e) {
       if (mounted) {
@@ -519,6 +542,7 @@ class _HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<_HistoryPage> {
   List<CareRound> _rounds = [];
   bool _loading = true;
+  String? _error;
   DateTime _from = DateTime.now().subtract(const Duration(days: 7));
   DateTime _to = DateTime.now();
 
@@ -529,13 +553,15 @@ class _HistoryPageState extends State<_HistoryPage> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
       _rounds = await widget.service.history(
         from: DateTime(_from.year, _from.month, _from.day),
         to: DateTime(_to.year, _to.month, _to.day, 23, 59),
       );
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -572,16 +598,18 @@ class _HistoryPageState extends State<_HistoryPage> {
       ),
       body: _loading
           ? const LoadingView()
-          : _rounds.isEmpty
-              ? const EmptyState(
-                  icon: Icons.history,
-                  title: 'No rounds found',
-                  subtitle: 'Try a different date range.')
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-                  itemCount: _rounds.length,
-                  itemBuilder: (_, i) => _historyTile(_rounds[i]),
-                ),
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _rounds.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.history,
+                      title: 'No rounds found',
+                      subtitle: 'Try a different date range.')
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+                      itemCount: _rounds.length,
+                      itemBuilder: (_, i) => _historyTile(_rounds[i]),
+                    ),
     );
   }
 
@@ -863,6 +891,7 @@ class _AdministerSheetState extends State<_AdministerSheet> {
             const SizedBox(height: 16),
             TextField(
               controller: _witnessCtrl,
+              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: 'Witness name (required for CD)',
                 border: OutlineInputBorder(),

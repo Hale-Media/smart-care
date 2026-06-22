@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/resident_provider.dart';
 import '../../services/incident_service.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 import 'incident_form_screen.dart';
 
@@ -23,6 +24,7 @@ class _IncidentsScreenState extends State<IncidentsScreen> {
   final _service = IncidentService();
   List<Incident> _incidents = [];
   bool _loading = true;
+  String? _error;
   String? _statusFilter; // null = all
   int? _lastHomeId;
 
@@ -33,13 +35,15 @@ class _IncidentsScreenState extends State<IncidentsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
       _incidents = await _service.list(
         status: _statusFilter,
         residentId: widget.residentId,
       );
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -100,12 +104,14 @@ class _IncidentsScreenState extends State<IncidentsScreen> {
       ),
       body: _loading
           ? const LoadingView()
-          : _incidents.isEmpty
-              ? const EmptyState(
-                  icon: Icons.report_problem_outlined,
-                  title: 'No incidents',
-                  subtitle: 'Logged incidents will appear here.')
-              : RefreshIndicator(
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _incidents.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.report_problem_outlined,
+                      title: 'No incidents',
+                      subtitle: 'Logged incidents will appear here.')
+                  : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),

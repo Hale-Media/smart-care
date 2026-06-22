@@ -317,7 +317,12 @@ class _ConsentSection extends StatelessWidget {
           MaterialPageRoute(builder: (_) => ResidentDetailScreen(resident: r)),
         );
       onRefresh();
-    } catch (_) {}
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not open resident: $e')));
+      }
+    }
   }
 }
 
@@ -365,7 +370,12 @@ class _ReviewSection extends StatelessWidget {
           MaterialPageRoute(builder: (_) => ResidentDetailScreen(resident: r)),
         );
       onRefresh();
-    } catch (_) {}
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not open resident: $e')));
+      }
+    }
   }
 }
 
@@ -410,7 +420,12 @@ class _HighRiskSection extends StatelessWidget {
           MaterialPageRoute(builder: (_) => ResidentDetailScreen(resident: r)),
         );
       onRefresh();
-    } catch (_) {}
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not open resident: $e')));
+      }
+    }
   }
 }
 
@@ -450,7 +465,12 @@ class _MissedVisitsSection extends StatelessWidget {
           MaterialPageRoute(builder: (_) => ResidentDetailScreen(resident: r)),
         );
       onRefresh();
-    } catch (_) {}
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not open resident: $e')));
+      }
+    }
   }
 }
 
