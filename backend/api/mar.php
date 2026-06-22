@@ -16,23 +16,22 @@ declare(strict_types=1);
  * witness_pin) and a cd_quantity, and decrement the CD register.
  */
 
-require_once __DIR__ . '/../config.php';
-header('Content-Type: application/json');
+require_once __DIR__ . '/config.php';
 
 $jwt  = require_auth();
-$repo = new AuditedRepository($pdo, (int) $jwt['sub'], (int) $jwt['home'], $_SERVER['REMOTE_ADDR'] ?? null);
+$repo = new AuditedRepository(db(), (int) $jwt['staff_id'], (int) $jwt['home_id'], $_SERVER['REMOTE_ADDR'] ?? null);
 
 const MAR_OUTCOMES   = ['given','refused','omitted','unavailable','asleep','hospital'];
 const WITNESS_ROLES  = ['seniorCarer','nurse','manager','admin'];
 
 try {
     match ($_SERVER['REQUEST_METHOD']) {
-        'GET'  => handleDue($pdo, $jwt),
-        'POST' => handleAdminister($pdo, $repo, $jwt),
-        default => respond(405, ['error' => 'Method not allowed']),
+        'GET'  => handleDue(db(), $jwt),
+        'POST' => handleAdminister(db(), $repo, $jwt),
+        default => respond(['error' => 'Method not allowed'], 405),
     };
 } catch (Throwable $e) {
-    respond(500, ['error' => 'Server error', 'detail' => $e->getMessage()]); // strip detail in prod
+    respond(['error' => 'Server error', 'detail' => $e->getMessage()], 500);
 }
 
 // =====================================================================
@@ -41,9 +40,9 @@ function handleDue(PDO $pdo, array $jwt): never
 {
     $residentId = (int) ($_GET['resident_id'] ?? 0);
     if ($residentId <= 0) {
-        respond(422, ['error' => 'resident_id is required']);
+        respond(['error' => 'resident_id is required'], 422);
     }
-    requireResidentInHome($pdo, $residentId, (int) $jwt['home']);
+    requireResidentInHome($pdo, $residentId, (int) $jwt['home_id']);
 
     $stmt = $pdo->prepare(
         "SELECT e.id, e.medication_id, e.scheduled_for, e.outcome,
@@ -55,20 +54,20 @@ function handleDue(PDO $pdo, array $jwt): never
          ORDER BY e.scheduled_for"
     );
     $stmt->execute([$residentId]);
-    respond(200, ['due' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    respond(['due' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 }
 
 function handleAdminister(PDO $pdo, AuditedRepository $repo, array $jwt): never
 {
-    $in      = input();
+    $in      = json_input();
     $marId   = (int) ($in['mar_entry_id'] ?? 0);
     $medId   = (int) ($in['medication_id'] ?? 0);
     $outcome = (string) ($in['outcome'] ?? 'given');
-    $homeId  = (int) $jwt['home'];
-    $staffId = (int) $jwt['sub'];
+    $homeId  = (int) $jwt['home_id'];
+    $staffId = (int) $jwt['staff_id'];
 
     if (!in_array($outcome, MAR_OUTCOMES, true)) {
-        respond(422, ['error' => 'invalid outcome']);
+        respond(['error' => 'invalid outcome'], 422);
     }
 
     // Resolve the scheduled entry (if any) and the medication.
@@ -78,7 +77,7 @@ function handleAdminister(PDO $pdo, AuditedRepository $repo, array $jwt): never
         $medId    = (int) $existing['medication_id'];
     }
     if ($medId <= 0) {
-        respond(422, ['error' => 'mar_entry_id or medication_id is required']);
+        respond(['error' => 'mar_entry_id or medication_id is required'], 422);
     }
     $med = requireOwnedMedication($pdo, $medId, $homeId);
     $residentId = (int) $med['resident_id'];
@@ -90,20 +89,19 @@ function handleAdminister(PDO $pdo, AuditedRepository $repo, array $jwt): never
     // ---- controlled-drug second signature (only when actually given) ----
     $witnessId = null; $witnessedAt = null; $cdQty = null; $newBalance = null;
     if ($isCD && $given) {
-        $witnessId = (int) ($in['witness_staff_id'] ?? 0);
+        $witnessId  = (int) ($in['witness_staff_id'] ?? 0);
         $witnessPin = (string) ($in['witness_pin'] ?? '');
-        $cdQty = isset($in['cd_quantity']) ? (float) $in['cd_quantity'] : 0.0;
+        $cdQty      = isset($in['cd_quantity']) ? (float) $in['cd_quantity'] : 0.0;
         if ($cdQty <= 0) {
-            respond(422, ['error' => 'cd_quantity is required for a controlled drug']);
+            respond(['error' => 'cd_quantity is required for a controlled drug'], 422);
         }
         verifyWitness($pdo, $witnessId, $witnessPin, $homeId, $staffId);
         $witnessedAt = nowStr();
 
-        // Compute the new register balance; refuse to go negative.
         $prev = currentCdBalance($pdo, $medId);
         $newBalance = round($prev - $cdQty, 2);
         if ($newBalance < 0) {
-            respond(409, ['error' => 'insufficient recorded CD stock', 'balance' => $prev]);
+            respond(['error' => 'insufficient recorded CD stock', 'balance' => $prev], 409);
         }
     }
 
@@ -112,11 +110,11 @@ function handleAdminister(PDO $pdo, AuditedRepository $repo, array $jwt): never
     if ($isPRN && $given) {
         $prnIndication = trim((string) ($in['prn_indication'] ?? (string) ($med['prn_reason'] ?? '')));
         if ($prnIndication === '') {
-            respond(422, ['error' => 'prn_indication is required for a PRN medication']);
+            respond(['error' => 'prn_indication is required for a PRN medication'], 422);
         }
-        $mins   = max(5, (int) ($in['prn_followup_mins'] ?? 60));
-        $prnDue = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
-                    ->modify("+{$mins} minutes")->format('Y-m-d H:i:s');
+        $mins      = max(5, (int) ($in['prn_followup_mins'] ?? 60));
+        $prnDue    = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
+                        ->modify("+{$mins} minutes")->format('Y-m-d H:i:s');
         $prnEffect = 'pending';
     }
 
@@ -142,7 +140,7 @@ function handleAdminister(PDO $pdo, AuditedRepository $repo, array $jwt): never
             $marEntryId = $repo->insert('mar_entries', array_merge([
                 'medication_id' => $medId,
                 'resident_id'   => $residentId,
-                'scheduled_for' => nowStr(),   // ad-hoc dose
+                'scheduled_for' => nowStr(),
             ], $fields), 'mar_entry');
         }
 
@@ -166,9 +164,9 @@ function handleAdminister(PDO $pdo, AuditedRepository $repo, array $jwt): never
         throw $e;
     }
 
-    respond(200, array_filter([
-        'mar_entry_id' => $marEntryId,
-        'cd_balance'   => $newBalance,
+    respond(array_filter([
+        'mar_entry_id'     => $marEntryId,
+        'cd_balance'       => $newBalance,
         'prn_followup_due' => $prnDue,
     ], static fn($v) => $v !== null));
 }
@@ -180,22 +178,22 @@ function handleAdminister(PDO $pdo, AuditedRepository $repo, array $jwt): never
 function verifyWitness(PDO $pdo, int $witnessId, string $pin, int $homeId, int $administeringStaffId): void
 {
     if ($witnessId <= 0 || $pin === '') {
-        respond(422, ['error' => 'a controlled drug requires a witness_staff_id and witness_pin']);
+        respond(['error' => 'a controlled drug requires a witness_staff_id and witness_pin'], 422);
     }
     if ($witnessId === $administeringStaffId) {
-        respond(422, ['error' => 'the witness must be a different member of staff']);
+        respond(['error' => 'the witness must be a different member of staff'], 422);
     }
     $stmt = $pdo->prepare('SELECT id, role, pin_hash FROM staff WHERE id = ? AND home_id = ?');
     $stmt->execute([$witnessId, $homeId]);
     $w = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$w) {
-        respond(422, ['error' => 'witness not found in this home']);
+        respond(['error' => 'witness not found in this home'], 422);
     }
     if (!in_array($w['role'], WITNESS_ROLES, true)) {
-        respond(403, ['error' => 'witness is not authorised to countersign controlled drugs']);
+        respond(['error' => 'witness is not authorised to countersign controlled drugs'], 403);
     }
     if (empty($w['pin_hash']) || !password_verify($pin, $w['pin_hash'])) {
-        respond(401, ['error' => 'witness PIN is incorrect']);
+        respond(['error' => 'witness PIN is incorrect'], 401);
     }
 }
 
@@ -205,20 +203,6 @@ function currentCdBalance(PDO $pdo, int $medicationId): float
     $stmt->execute([$medicationId]);
     $bal = $stmt->fetchColumn();
     return $bal === false ? 0.0 : (float) $bal;
-}
-
-function respond(int $code, array $body): never
-{
-    http_response_code($code);
-    echo json_encode($body, JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
-function input(): array
-{
-    $raw  = file_get_contents('php://input');
-    $data = json_decode($raw !== false && $raw !== '' ? $raw : '[]', true);
-    return is_array($data) ? $data : [];
 }
 
 function nowStr(): string
@@ -231,7 +215,7 @@ function requireResidentInHome(PDO $pdo, int $residentId, int $homeId): void
     $stmt = $pdo->prepare('SELECT 1 FROM residents WHERE id = ? AND home_id = ? AND active = 1');
     $stmt->execute([$residentId, $homeId]);
     if (!$stmt->fetchColumn()) {
-        respond(404, ['error' => 'resident not found in this home']);
+        respond(['error' => 'resident not found in this home'], 404);
     }
 }
 
@@ -245,7 +229,7 @@ function requireOwnedMedication(PDO $pdo, int $medId, int $homeId): array
     $stmt->execute([$medId, $homeId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
-        respond(404, ['error' => 'medication not found in this home']);
+        respond(['error' => 'medication not found in this home'], 404);
     }
     return $row;
 }
@@ -260,10 +244,10 @@ function requireOwnedMarEntry(PDO $pdo, int $marId, int $homeId): array
     $stmt->execute([$marId, $homeId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
-        respond(404, ['error' => 'MAR entry not found in this home']);
+        respond(['error' => 'MAR entry not found in this home'], 404);
     }
     if ($row['administered_at'] !== null) {
-        respond(409, ['error' => 'this dose has already been recorded']);
+        respond(['error' => 'this dose has already been recorded'], 409);
     }
     return $row;
 }
