@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
@@ -258,8 +260,7 @@ class _IncidentsScreenState extends State<IncidentsScreen> {
 class _IncidentDetailPage extends StatefulWidget {
   final Incident incident;
   final IncidentService service;
-  const _IncidentDetailPage(
-      {required this.incident, required this.service});
+  const _IncidentDetailPage({required this.incident, required this.service});
   @override
   State<_IncidentDetailPage> createState() => _IncidentDetailPageState();
 }
@@ -267,11 +268,170 @@ class _IncidentDetailPage extends StatefulWidget {
 class _IncidentDetailPageState extends State<_IncidentDetailPage> {
   late Incident _inc;
   bool _saving = false;
+  bool _editing = false;
+  String? _uploadStatus;
+
+  // Edit-mode state
+  final _descCtrl = TextEditingController();
+  final _actionCtrl = TextEditingController();
+  final _injuryDetailsCtrl = TextEditingController();
+  final _locationCtrl = TextEditingController();
+  bool _editInjury = false;
+  bool _editFamilyNotified = false;
+  bool _editGpNotified = false;
+  List<String> _editPhotoUrls = [];
+  final List<XFile> _editNewPhotos = [];
+  final _picker = ImagePicker();
+  static const _maxPhotos = 5;
 
   @override
   void initState() {
     super.initState();
     _inc = widget.incident;
+  }
+
+  @override
+  void dispose() {
+    _descCtrl.dispose();
+    _actionCtrl.dispose();
+    _injuryDetailsCtrl.dispose();
+    _locationCtrl.dispose();
+    super.dispose();
+  }
+
+  void _startEdit() {
+    _descCtrl.text = _inc.description;
+    _actionCtrl.text = _inc.immediateAction ?? '';
+    _injuryDetailsCtrl.text = _inc.injuryDetails ?? '';
+    _locationCtrl.text = _inc.location ?? '';
+    _editInjury = _inc.injurySustained;
+    _editFamilyNotified = _inc.familyNotified;
+    _editGpNotified = _inc.gpNotified;
+    _editPhotoUrls = List.from(_inc.photoUrls);
+    _editNewPhotos.clear();
+    setState(() => _editing = true);
+  }
+
+  void _cancelEdit() => setState(() {
+        _editing = false;
+        _uploadStatus = null;
+      });
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final xfile = await _picker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1920,
+    );
+    if (xfile != null) setState(() => _editNewPhotos.add(xfile));
+  }
+
+  Future<void> _showPhotoOptions() async {
+    final total = _editPhotoUrls.length + _editNewPhotos.length;
+    if (total >= _maxPhotos) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maximum $_maxPhotos photos allowed')),
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickPhoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickPhoto(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveEdit() async {
+    setState(() {
+      _saving = true;
+      _uploadStatus = null;
+    });
+
+    final allUrls = List<String>.from(_editPhotoUrls);
+    for (var i = 0; i < _editNewPhotos.length; i++) {
+      setState(
+        () => _uploadStatus = 'Uploading photo ${i + 1}/${_editNewPhotos.length}…',
+      );
+      try {
+        allUrls.add(await widget.service.uploadPhoto(_editNewPhotos[i]));
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('Photo upload failed: $e')));
+          setState(() {
+            _saving = false;
+            _uploadStatus = null;
+          });
+        }
+        return;
+      }
+    }
+
+    if (mounted) setState(() => _uploadStatus = 'Saving…');
+
+    try {
+      final updated = await widget.service.update(
+        Incident(
+          id: _inc.id,
+          residentId: _inc.residentId,
+          category: _inc.category,
+          severity: _inc.severity,
+          occurredAt: _inc.occurredAt,
+          reportedAt: _inc.reportedAt,
+          reportedByStaffId: _inc.reportedByStaffId,
+          description: _descCtrl.text.trim(),
+          immediateAction: _actionCtrl.text.trim(),
+          location: _locationCtrl.text.trim(),
+          injurySustained: _editInjury,
+          injuryDetails: _editInjury ? _injuryDetailsCtrl.text.trim() : null,
+          familyNotified: _editFamilyNotified,
+          gpNotified: _editGpNotified,
+          witnessed: _inc.witnessed,
+          cqcNotifiable: _inc.cqcNotifiable,
+          safeguardingRaised: _inc.safeguardingRaised,
+          photoUrls: allUrls,
+          status: _inc.status,
+        ),
+      );
+      if (mounted) {
+        setState(() {
+          _inc = updated;
+          _editing = false;
+          _saving = false;
+          _uploadStatus = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+        setState(() {
+          _saving = false;
+          _uploadStatus = null;
+        });
+      }
+    }
   }
 
   Future<void> _updateStatus(String status) async {
@@ -287,6 +447,7 @@ class _IncidentDetailPageState extends State<_IncidentDetailPage> {
           reportedAt: _inc.reportedAt,
           reportedByStaffId: _inc.reportedByStaffId,
           description: _inc.description,
+          photoUrls: _inc.photoUrls,
           status: status,
         ),
       );
@@ -301,76 +462,339 @@ class _IncidentDetailPageState extends State<_IncidentDetailPage> {
     }
   }
 
+  void _showPhoto(BuildContext ctx, String url) {
+    showDialog<void>(
+      context: ctx,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                child: Image.network(url, fit: BoxFit.contain),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_editing ? 'Edit incident' : (_inc.residentName ?? 'Incident')),
+        leading: _editing
+            ? TextButton(
+                onPressed: _saving ? null : _cancelEdit,
+                child: const Text('Cancel'),
+              )
+            : const BackButton(),
+        actions: _editing
+            ? []
+            : [
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Edit',
+                  onPressed: _startEdit,
+                ),
+              ],
+      ),
+      bottomNavigationBar: _editing
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_uploadStatus != null) ...[
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: 6),
+                      Text(
+                        _uploadStatus!,
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    FilledButton(
+                      onPressed: _saving ? null : _saveEdit,
+                      child: Text(_saving ? 'Saving…' : 'Update'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : (_inc.status != 'closed'
+              ? SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Row(children: [
+                      if (_inc.status == 'open') ...[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _saving
+                                ? null
+                                : () => _updateStatus('investigating'),
+                            child: const Text('Mark investigating'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      Expanded(
+                        child: FilledButton(
+                          onPressed:
+                              _saving ? null : () => _updateStatus('closed'),
+                          child: const Text('Close incident'),
+                        ),
+                      ),
+                    ]),
+                  ),
+                )
+              : null),
+      body: _editing ? _buildEditBody() : _buildViewBody(context),
+    );
+  }
+
+  Widget _buildViewBody(BuildContext context) {
     final fmt = DateFormat('d MMM yyyy, HH:mm');
     final severityColor = _severityColor(_inc.severity);
     final statusColor = _statusColor(_inc.status);
     final reporterPart =
         _inc.reportedByName != null ? ' by ${_inc.reportedByName}' : '';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_inc.residentName ?? 'Incident'),
-        leading: const BackButton(),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Header chips
-          Wrap(spacing: 8, runSpacing: 6, children: [
-            _chip(_inc.category, Colors.blueGrey),
-            _chip(_inc.severity, severityColor),
-            _chip(_inc.status, statusColor),
-            if (_inc.cqcNotifiable) _chip('CQC notifiable', AppTheme.critical),
-            if (_inc.safeguardingRaised)
-              _chip('Safeguarding', Colors.purple),
-            if (_inc.injurySustained) _chip('Injury sustained', AppTheme.warning),
-            if (_inc.witnessed) _chip('Witnessed', Colors.teal),
-          ]),
-          const SizedBox(height: 16),
-          _row('Occurred', fmt.format(_inc.occurredAt.toLocal())),
-          _row('Reported',
-              '${fmt.format(_inc.occurredAt.toLocal())}$reporterPart'),
-          if (_inc.location != null) _row('Location', _inc.location!),
-          const Divider(height: 24),
-          _section('What happened', _inc.description),
-          if (_inc.immediateAction != null && _inc.immediateAction!.isNotEmpty)
-            _section('Immediate action', _inc.immediateAction!),
-          _row('Family notified', _inc.familyNotified ? 'Yes' : 'No'),
-          _row('GP notified', _inc.gpNotified ? 'Yes' : 'No'),
-          const SizedBox(height: 24),
-          // Status actions
-          if (_inc.status != 'closed') ...[
-            const Text('Update status',
-                style:
-                    TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-            const SizedBox(height: 10),
-            Row(children: [
-              if (_inc.status == 'open') ...[
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed:
-                        _saving ? null : () => _updateStatus('investigating'),
-                    child: const Text('Mark investigating'),
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          _chip(_inc.category, Colors.blueGrey),
+          _chip(_inc.severity, severityColor),
+          _chip(_inc.status, statusColor),
+          if (_inc.cqcNotifiable) _chip('CQC notifiable', AppTheme.critical),
+          if (_inc.safeguardingRaised) _chip('Safeguarding', Colors.purple),
+          if (_inc.injurySustained) _chip('Injury sustained', AppTheme.warning),
+          if (_inc.witnessed) _chip('Witnessed', Colors.teal),
+        ]),
+        const SizedBox(height: 16),
+        _row('Occurred', fmt.format(_inc.occurredAt.toLocal())),
+        _row('Reported', '${fmt.format(_inc.reportedAt.toLocal())}$reporterPart'),
+        if (_inc.location != null && _inc.location!.isNotEmpty)
+          _row('Location', _inc.location!),
+        const Divider(height: 24),
+        _section('What happened', _inc.description),
+        if (_inc.immediateAction != null && _inc.immediateAction!.isNotEmpty)
+          _section('Immediate action', _inc.immediateAction!),
+        if (_inc.injuryDetails != null && _inc.injuryDetails!.isNotEmpty)
+          _section('Injury details', _inc.injuryDetails!),
+        if (_inc.photoUrls.isNotEmpty) ...[
+          const Text(
+            'Photos',
+            style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _inc.photoUrls.length,
+              itemBuilder: (ctx, i) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => _showPhoto(ctx, _inc.photoUrls[i]),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      _inc.photoUrls[i],
+                      width: 120,
+                      height: 120,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        width: 120,
+                        height: 120,
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.broken_image, color: Colors.grey),
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 10),
-              ],
-              Expanded(
-                child: FilledButton(
-                  onPressed:
-                      _saving ? null : () => _updateStatus('closed'),
-                  child: const Text('Close incident'),
-                ),
               ),
-            ]),
-          ] else
-            _chip('Incident closed', AppTheme.ok),
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
-      ),
+        _row('Family notified', _inc.familyNotified ? 'Yes' : 'No'),
+        _row('GP notified', _inc.gpNotified ? 'Yes' : 'No'),
+        if (_inc.status == 'closed') ...[
+          const SizedBox(height: 16),
+          _chip('Incident closed', AppTheme.ok),
+        ],
+      ],
     );
   }
+
+  Widget _buildEditBody() {
+    final total = _editPhotoUrls.length + _editNewPhotos.length;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        TextFormField(
+          controller: _descCtrl,
+          decoration: const InputDecoration(labelText: 'What happened?'),
+          maxLines: 4,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _actionCtrl,
+          decoration: const InputDecoration(labelText: 'Immediate action taken'),
+          maxLines: 3,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _locationCtrl,
+          decoration: const InputDecoration(labelText: 'Location'),
+        ),
+        SwitchListTile(
+          value: _editInjury,
+          onChanged: (v) => setState(() => _editInjury = v),
+          title: const Text('Injury sustained'),
+        ),
+        if (_editInjury) ...[
+          TextFormField(
+            controller: _injuryDetailsCtrl,
+            decoration: const InputDecoration(labelText: 'Injury details'),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 12),
+        ],
+        // Photo management
+        Row(children: [
+          const Text(
+            'Photos',
+            style: TextStyle(
+                fontSize: 14,
+                color: Colors.black54,
+                fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$total/$_maxPhotos',
+            style: const TextStyle(fontSize: 12, color: Colors.black38),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 100,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              ..._editPhotoUrls.asMap().entries.map((e) => _networkThumb(e.key, e.value)),
+              ..._editNewPhotos.asMap().entries.map((e) => _localThumb(e.key, e.value)),
+              if (total < _maxPhotos) _addButton(),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SwitchListTile(
+          value: _editFamilyNotified,
+          onChanged: (v) => setState(() => _editFamilyNotified = v),
+          title: const Text('Family / next of kin notified'),
+        ),
+        SwitchListTile(
+          value: _editGpNotified,
+          onChanged: (v) => setState(() => _editGpNotified = v),
+          title: const Text('GP notified'),
+        ),
+      ],
+    );
+  }
+
+  Widget _networkThumb(int i, String url) => Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                url,
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  width: 100,
+                  height: 100,
+                  color: Colors.grey[200],
+                  child: const Icon(Icons.broken_image, color: Colors.grey),
+                ),
+              ),
+            ),
+            _removeBtn(() => setState(() => _editPhotoUrls.removeAt(i))),
+          ],
+        ),
+      );
+
+  Widget _localThumb(int i, XFile file) => Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                File(file.path),
+                width: 100,
+                height: 100,
+                fit: BoxFit.cover,
+              ),
+            ),
+            _removeBtn(() => setState(() => _editNewPhotos.removeAt(i))),
+          ],
+        ),
+      );
+
+  Widget _removeBtn(VoidCallback onTap) => Positioned(
+        top: 4,
+        right: 4,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            decoration: const BoxDecoration(
+                color: Colors.black54, shape: BoxShape.circle),
+            padding: const EdgeInsets.all(2),
+            child: const Icon(Icons.close, size: 14, color: Colors.white),
+          ),
+        ),
+      );
+
+  Widget _addButton() => GestureDetector(
+        onTap: _showPhotoOptions,
+        child: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.black26),
+          ),
+          child: const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_a_photo_outlined, size: 28, color: Colors.black45),
+              SizedBox(height: 4),
+              Text('Add photo',
+                  style: TextStyle(fontSize: 11, color: Colors.black45)),
+            ],
+          ),
+        ),
+      );
 
   Widget _row(String label, String value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),

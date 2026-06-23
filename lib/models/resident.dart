@@ -103,7 +103,7 @@ class Resident {
     monitoringConsent: j['monitoring_consent'] ?? 'not_required',
     consentRepresentative: j['consent_representative'],
     consentRecordedAt: j['consent_recorded_at'] != null
-        ? DateTime.tryParse('${j['consent_recorded_at']}Z')?.toLocal()
+        ? DateTime.tryParse(j['consent_recorded_at'].toString())
         : null,
     outcomeReviewDate: j['outcome_review_date'] != null
         ? DateTime.tryParse(j['outcome_review_date'])
