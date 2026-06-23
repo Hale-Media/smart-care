@@ -1,4 +1,25 @@
 {
-	"java.compile.nullAnalysis.mode": "automatic",
-	"java.configuration.updateBuildConfiguration": "interactive"
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.import.exclusions": [
+    "**/.claude/**",
+    "**/.claude/worktrees/**",
+    "**/.claude/worktrees/*/android/**"
+  ],
+  "java.project.resourceFilters": [
+    ".claude",
+    "**/.claude/**",
+    "**/.claude/worktrees/**"
+  ],
+  "files.watcherExclude": {
+    "**/.claude/**": true,
+    "**/.claude/worktrees/**": true
+  },
+  "search.exclude": {
+    "**/.claude/**": true,
+    "**/.claude/worktrees/**": true
+  },
+  "files.exclude": {
+    "**/.claude/worktrees/**": true
+  }
 }

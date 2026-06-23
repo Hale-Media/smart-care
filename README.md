@@ -1,4 +1,4 @@
-# care_package
+# smart_care
 
 A new Flutter project.
 

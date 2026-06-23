@@ -1,4 +1,4 @@
-name: care_package
+name: smart_care
 description: Care Package - elderly resident monitoring for UK care homes.
 publish_to: 'none'
 version: 1.0.0+1

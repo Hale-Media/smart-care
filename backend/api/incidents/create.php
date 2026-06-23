@@ -14,12 +14,15 @@ if (!$own->fetch()) fail('Resident not found', 404);
 
 $staffId = (int)$auth['sub'];
 
+$photos     = is_array($in['photos'] ?? null) ? $in['photos'] : [];
+$photosJson = json_encode($photos);
+
 $stmt = db()->prepare(
     "INSERT INTO incidents
         (resident_id, category, severity, occurred_at, reported_at, reported_by,
-         location, description, immediate_action, injury, witnessed,
-         family_notified, gp_notified, cqc_notifiable, safeguarding, status)
-     VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')"
+         location, description, immediate_action, injury, injury_details, witnessed,
+         family_notified, gp_notified, cqc_notifiable, safeguarding, photos, status)
+     VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')"
 );
 $stmt->execute([
     $residentId,
@@ -31,11 +34,13 @@ $stmt->execute([
     $in['description']      ?? '',
     $in['immediate_action'] ?? null,
     !empty($in['injury'])          ? 1 : 0,
+    $in['injury_details']   ?? null,
     !empty($in['witnessed'])       ? 1 : 0,
     !empty($in['family_notified']) ? 1 : 0,
     !empty($in['gp_notified'])     ? 1 : 0,
     !empty($in['cqc_notifiable'])  ? 1 : 0,
     !empty($in['safeguarding'])    ? 1 : 0,
+    $photosJson,
 ]);
 $newId = (int)db()->lastInsertId();
 audit($staffId, 'create', 'incident', $newId, $in['category'] ?? null);
@@ -49,4 +54,6 @@ $row = db()->prepare(
      WHERE i.id = ?"
 );
 $row->execute([$newId]);
-respond(['incident' => $row->fetch()], 201);
+$result = $row->fetch();
+$result['photos'] = json_decode($result['photos'] ?? '[]', true) ?? [];
+respond(['incident' => $result], 201);
