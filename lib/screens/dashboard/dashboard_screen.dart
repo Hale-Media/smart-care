@@ -10,6 +10,8 @@ import '../../providers/alert_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/incident_provider.dart';
 import '../../providers/resident_provider.dart';
+import '../../models/chc_summary.dart';
+import '../../services/chc_service.dart';
 import '../../services/medication_service.dart';
 import '../../services/round_service.dart';
 import '../../utils/formatters.dart';
@@ -17,6 +19,7 @@ import '../../widgets/common/status_pill.dart';
 import '../alerts/alert_detail_screen.dart';
 import '../compliance/compliance_dashboard_screen.dart';
 import '../handover/handover_screen.dart';
+import '../medication/overdue_meds_screen.dart';
 import '../../widgets/home_switcher.dart';
 import '../../widgets/home_cqc_badge.dart';
 
@@ -31,9 +34,11 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final _medService = MedicationService();
   final _roundService = RoundService();
+  final _chcService = ChcService();
 
   int _overdueMeds = 0;
   int _pendingRounds = 0;
+  ChcSummary _chc = const ChcSummary(positivePending: 0, totalDrafts: 0);
   Timer? _timer;
 
   @override
@@ -58,20 +63,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final now = DateTime.now();
       final from = DateTime(now.year, now.month, now.day);
-      final to = DateTime(now.year, now.month, now.day, 23, 59);
+      final to = DateTime(now.year, now.month, now.day, 23, 59, 59);
       final results = await Future.wait([
         _medService.dueMedications(from: from, to: to),
         _roundService.due(from: from, to: to),
+        _chcService.summary(),
       ]);
       final meds = results[0] as List<DueMedication>;
       final rounds = results[1] as List<CareRound>;
+      final chc = results[2] as ChcSummary;
       if (mounted) {
         setState(() {
           _overdueMeds = meds.where((m) => m.isOverdue).length;
           _pendingRounds = rounds.where((r) => !r.isDone && !r.skipped).length;
+          _chc = chc;
         });
       }
     } catch (_) {}
+  }
+
+  Future<void> _openOverdueMeds() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const OverdueMedsScreen()),
+    );
+    _loadExtras();
   }
 
   Future<void> _refresh() async {
@@ -169,6 +184,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             else
               ...alerts.open.take(8).map((a) => _AlertTile(alert: a)),
             _HandoverCard(),
+            _ChcCard(summary: _chc),
             const _ComplianceCard(),
           ],
         ),
@@ -205,7 +221,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _kpi('Overdue meds', '$_overdueMeds',
               Icons.medication_outlined,
               _overdueMeds > 0 ? AppTheme.critical : AppTheme.ok,
-              () => widget.onNavigate(3)),
+              _openOverdueMeds),
           _kpi('Rounds due', '$_pendingRounds',
               Icons.checklist,
               _pendingRounds > 0 ? AppTheme.warning : AppTheme.ok,
@@ -319,6 +335,43 @@ class _HandoverCard extends StatelessWidget {
           onTap: () => Navigator.of(
             context,
           ).push(MaterialPageRoute(builder: (_) => const HandoverScreen())),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChcCard extends StatelessWidget {
+  final ChcSummary summary;
+  const _ChcCard({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = summary.positivePending > 0
+        ? '${summary.positivePending} positive pending referral${summary.positivePending == 1 ? '' : 's'}'
+            '  ·  ${summary.totalDrafts} draft${summary.totalDrafts == 1 ? '' : 's'}'
+        : summary.totalDrafts > 0
+            ? '${summary.totalDrafts} draft${summary.totalDrafts == 1 ? '' : 's'} in progress'
+            : 'No open assessments';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      child: Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: summary.positivePending > 0
+                ? const Color(0xFFFFEBEE)
+                : const Color(0xFFE3F2FD),
+            child: Icon(
+              Icons.health_and_safety_outlined,
+              color: summary.positivePending > 0 ? AppTheme.critical : AppTheme.info,
+            ),
+          ),
+          title: const Text(
+            'NHS Continuing Healthcare',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(subtitle),
         ),
       ),
     );

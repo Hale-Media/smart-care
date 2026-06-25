@@ -41,6 +41,7 @@ $marStmt->execute([(int)$auth['home'], $today]);
 // Build lookup: medication_id -> [HH:MM -> row]
 $marMap = [];
 foreach ($marStmt->fetchAll() as $row) {
+    if (empty($row['scheduled_for']) || $row['scheduled_for'] === '0000-00-00 00:00:00') continue;
     $t = (new DateTime($row['scheduled_for']))->format('H:i');
     $marMap[(int)$row['medication_id']][$t] = $row;
 }

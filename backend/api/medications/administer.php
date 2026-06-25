@@ -18,9 +18,26 @@ $own = db()->prepare(
 $own->execute([$medicationId, (int)$auth['home']]);
 if (!$own->fetch()) fail('Medication not found', 404);
 
-$staffId      = (int)$auth['sub'];
-$administeredAt = $in['administered_at'] ?? date('Y-m-d H:i:s');
-$scheduledFor   = $in['scheduled_for']   ?? $administeredAt;
+$staffId = (int)$auth['sub'];
+
+// Parse ISO 8601 strings from the Flutter client into MySQL-safe DATETIME strings.
+// Flutter sends administered_at as local time and scheduled_for as UTC (with Z suffix);
+// PHP's DateTime parser handles both correctly.
+function parseDt(?string $raw): ?string {
+    if (empty($raw)) return null;
+    try { return (new DateTime($raw))->format('Y-m-d H:i:s'); }
+    catch (Exception $e) { return null; }
+}
+
+$administeredAt = parseDt($in['administered_at'] ?? null) ?? date('Y-m-d H:i:s');
+$scheduledFor   = parseDt($in['scheduled_for']   ?? null) ?? $administeredAt;
+
+// Prevent duplicate entries for the same slot (e.g. double-tap).
+$dup = db()->prepare(
+    'SELECT id FROM mar_entries WHERE medication_id = ? AND scheduled_for = ? LIMIT 1'
+);
+$dup->execute([$medicationId, $scheduledFor]);
+if ($dup->fetch()) fail('A MAR entry already exists for this slot', 409);
 
 $stmt = db()->prepare(
     "INSERT INTO mar_entries

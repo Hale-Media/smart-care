@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -14,7 +16,8 @@ import '../../widgets/common/status_pill.dart';
 
 class MedicationScreen extends StatefulWidget {
   final Resident resident;
-  const MedicationScreen({super.key, required this.resident});
+  final int initialTab;
+  const MedicationScreen({super.key, required this.resident, this.initialTab = 0});
   @override
   State<MedicationScreen> createState() => _MedicationScreenState();
 }
@@ -27,17 +30,22 @@ class _MedicationScreenState extends State<MedicationScreen>
   bool _loading = true;
   String? _error;
   late final TabController _tab;
+  Timer? _scheduleTimer;
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
     _load();
+    _scheduleTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _tab.dispose();
+    _scheduleTimer?.cancel();
     super.dispose();
   }
 
@@ -50,7 +58,7 @@ class _MedicationScreenState extends State<MedicationScreen>
         _service.marHistory(
           residentId: widget.resident.id,
           from: DateTime(now.year, now.month, now.day),
-          to: DateTime(now.year, now.month, now.day, 23, 59),
+          to: DateTime(now.year, now.month, now.day, 23, 59, 59),
         ),
       ]);
       _meds = results[0] as List<Medication>;
@@ -170,7 +178,6 @@ class _MedicationScreenState extends State<MedicationScreen>
   }
 
   Widget _buildTodaySchedule() {
-    // Derive scheduled slots from each medication's times list.
     final slots = <_ScheduleSlot>[];
     final prnMeds = <Medication>[];
     final now = TimeOfDay.now();
@@ -182,13 +189,13 @@ class _MedicationScreenState extends State<MedicationScreen>
         continue;
       }
       for (final t in med.times) {
-        final parts = t.split(':');
-        if (parts.length != 2) continue;
-        final slotHour = int.tryParse(parts[0]) ?? 0;
-        final slotMin = int.tryParse(parts[1]) ?? 0;
+        final norm = _normalizeTime(t);
+        if (norm == null) continue;
+        final parts = norm.split(':');
+        final slotHour = int.parse(parts[0]);
+        final slotMin  = int.parse(parts[1]);
         final isOverdue = slotHour < now.hour ||
-            (slotHour == now.hour && slotMin <= now.minute);
-        // Match entry by medication AND the exact scheduled slot time.
+            (slotHour == now.hour && slotMin < now.minute);
         final entry = _todayEntries
             .where((e) =>
                 e.medicationId == med.id &&
@@ -198,7 +205,7 @@ class _MedicationScreenState extends State<MedicationScreen>
             .firstWhere((_) => true, orElse: () => null);
         slots.add(_ScheduleSlot(
           medication: med,
-          time: t,
+          time: norm,
           entry: entry,
           isOverdue: entry == null && isOverdue,
         ));
@@ -335,10 +342,23 @@ class _MedicationScreenState extends State<MedicationScreen>
             ),
           ],
         ),
-        onTap: () => _openAdministerPage(m),
+        onTap: m.prn ? () => _openAdministerPage(m) : () => _tab.animateTo(1),
       ),
     );
   }
+}
+
+/// Converts user-entered time strings to canonical "HH:MM".
+/// Accepts "8:00", "08:00", "3.00", "08.00", etc.
+/// Returns null for anything unparseable.
+String? _normalizeTime(String raw) {
+  final cleaned = raw.trim().replaceAll('.', ':');
+  final parts = cleaned.split(':');
+  if (parts.length != 2) return null;
+  final h = int.tryParse(parts[0]);
+  final m = int.tryParse(parts[1]);
+  if (h == null || m == null || h > 23 || m > 59) return null;
+  return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
 }
 
 class _ScheduleSlot {
@@ -508,16 +528,14 @@ class _AdministerPageState extends State<_AdministerPage> {
 
   DateTime _resolveScheduledFor() {
     final t = widget.scheduledTime;
-    if (t == null) return DateTime.now().toUtc();
+    if (t == null) return DateTime.now();
     final parts = t.split(':');
-    if (parts.length != 2) return DateTime.now().toUtc();
+    if (parts.length != 2) return DateTime.now();
     final h = int.tryParse(parts[0]);
     final m = int.tryParse(parts[1]);
-    if (h == null || m == null) return DateTime.now().toUtc();
-    // Slot times in m.times are stored as UTC strings on the server.
-    // Build a UTC datetime so the backend's slot-time lookup matches.
-    final today = DateTime.now().toUtc();
-    return DateTime.utc(today.year, today.month, today.day, h, m);
+    if (h == null || m == null) return DateTime.now();
+    final today = DateTime.now();
+    return DateTime(today.year, today.month, today.day, h, m);
   }
 
   Future<void> _submit() async {
@@ -529,11 +547,12 @@ class _AdministerPageState extends State<_AdministerPage> {
     }
     setState(() => _saving = true);
     final now = DateTime.now();
+    final scheduled = _resolveScheduledFor();
     final entry = MarEntry(
       id: 0,
       medicationId: widget.medication.id,
       residentId: widget.medication.residentId,
-      scheduledFor: _resolveScheduledFor(),
+      scheduledFor: scheduled,
       administeredAt: now,
       administeredByStaffId: widget.staffId,
       administeredByName: widget.staffName,
@@ -653,6 +672,8 @@ class _AddMedicationPageState extends State<_AddMedicationPage> {
   bool _cd = false;
   bool _saving = false;
   String? _presetMed;
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   static const _routes = [
     'oral', 'topical', 'subcutaneous', 'IV', 'inhaler', 'patch', 'drops'
@@ -681,6 +702,8 @@ class _AddMedicationPageState extends State<_AddMedicationPage> {
           : 'once_daily';
       _prn = e.prn;
       _cd = e.controlledDrug;
+      _startDate = e.startDate;
+      _endDate = e.endDate;
     }
   }
 
@@ -708,8 +731,8 @@ class _AddMedicationPageState extends State<_AddMedicationPage> {
           ? []
           : _times.text
               .split(',')
-              .map((e) => e.trim())
-              .where((e) => e.isNotEmpty)
+              .map((e) => _normalizeTime(e.trim()))
+              .whereType<String>()
               .toList(),
       prn: _prn,
       prnReason:
@@ -718,6 +741,8 @@ class _AddMedicationPageState extends State<_AddMedicationPage> {
       instructions: _instructions.text.trim().isEmpty
           ? null
           : _instructions.text.trim(),
+      startDate: _startDate,
+      endDate: _endDate,
     );
     try {
       if (widget.existing != null) {
@@ -850,6 +875,19 @@ class _AddMedicationPageState extends State<_AddMedicationPage> {
                         border: OutlineInputBorder()),
                     maxLines: 3,
                   ),
+                  const SizedBox(height: 16),
+                  _DatePickerRow(
+                    label: 'Start date',
+                    value: _startDate,
+                    onPicked: (d) => setState(() => _startDate = d),
+                  ),
+                  const SizedBox(height: 8),
+                  _DatePickerRow(
+                    label: 'End date',
+                    value: _endDate,
+                    onPicked: (d) => setState(() => _endDate = d),
+                    clearable: true,
+                  ),
                 ],
               ),
             ),
@@ -871,6 +909,58 @@ class _AddMedicationPageState extends State<_AddMedicationPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Date picker row used in Add/Edit medication ───────────────────────────────
+
+class _DatePickerRow extends StatelessWidget {
+  final String label;
+  final DateTime? value;
+  final ValueChanged<DateTime?> onPicked;
+  final bool clearable;
+
+  const _DatePickerRow({
+    required this.label,
+    required this.value,
+    required this.onPicked,
+    this.clearable = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat('d MMM yyyy');
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.calendar_today, size: 16),
+            label: Text(value != null ? '$label: ${fmt.format(value!)}' : label),
+            style: OutlinedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            ),
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: value ?? DateTime.now(),
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2100),
+              );
+              if (picked != null) onPicked(picked);
+            },
+          ),
+        ),
+        if (clearable && value != null) ...[
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.clear, size: 18),
+            tooltip: 'Clear',
+            onPressed: () => onPicked(null),
+          ),
+        ],
+      ],
     );
   }
 }

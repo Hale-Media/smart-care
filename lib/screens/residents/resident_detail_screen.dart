@@ -19,6 +19,7 @@ import 'dols_screen.dart';
 import 'home_care_calls_screen.dart';
 import 'lasting_powers_screen.dart';
 import 'risk_assessment_screen.dart';
+import 'chc_screen.dart';
 import 'safeguarding_screen.dart';
 import 'visit_history_screen.dart';
 
@@ -843,6 +844,11 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
       _ActionData('Safeguarding', Icons.shield_outlined, () {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => SafeguardingScreen(resident: r)),
+        );
+      }),
+      _ActionData('NHS Continuing Healthcare (CHC)', Icons.health_and_safety_outlined, () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ChcScreen(resident: r)),
         );
       }),
       _ActionData('Vitals / NEWS2', Icons.monitor_heart, () {

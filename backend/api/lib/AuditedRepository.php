@@ -24,7 +24,7 @@ final class AuditedRepository
         'residents', 'medications', 'mar_entries', 'cd_register', 'vitals',
         'incidents', 'care_rounds', 'care_calls', 'handover_notes', 'alerts',
         'capacity_assessments', 'dols_authorisations', 'advance_decisions',
-        'lasting_powers', 'safeguarding_concerns',
+        'lasting_powers', 'safeguarding_concerns', 'chc_checklists',
     ];
 
     /** Tables that support the versioned supersede pattern. */

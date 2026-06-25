@@ -115,9 +115,9 @@ class MarEntry {
         id: j['id'] as int,
         medicationId: j['medication_id'] as int,
         residentId: j['resident_id'] as int,
-        scheduledFor: DateTime.parse('${j['scheduled_for']}Z').toLocal(),
+        scheduledFor: DateTime.parse((j['scheduled_for'] as String).replaceFirst(' ', 'T')),
         administeredAt: j['administered_at'] != null
-            ? DateTime.tryParse('${j['administered_at']}Z')?.toLocal()
+            ? DateTime.tryParse((j['administered_at'] as String).replaceFirst(' ', 'T'))
             : null,
         administeredByStaffId: j['administered_by'],
         administeredByName: j['administered_by_name'],
