@@ -12,3 +12,5 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+# Allow the shared debug keystore so all machines use the same signing identity
+!app/debug.keystore
