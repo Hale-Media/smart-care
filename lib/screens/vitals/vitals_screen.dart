@@ -307,11 +307,14 @@ class _Sparkline extends StatelessWidget {
       final v = value(pts[i]);
       if (v != null) spots.add(FlSpot(i.toDouble(), v));
     }
-    if (spots.isEmpty) return const SizedBox.shrink();
+    if (spots.length < 2) return const SizedBox.shrink();
 
     final last = spots.last.y;
     final isNormal = last >= normalMin && last <= normalMax;
     final statusColor = isNormal ? AppTheme.ok : AppTheme.warning;
+    final minVal = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
+    final maxVal = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+    final yPad = (maxVal - minVal) * 0.05 + 1;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -334,8 +337,8 @@ class _Sparkline extends StatelessWidget {
           SizedBox(
             height: 48,
             child: LineChart(LineChartData(
-              minY: spots.map((s) => s.y).reduce((a, b) => a < b ? a : b) * 0.95,
-              maxY: spots.map((s) => s.y).reduce((a, b) => a > b ? a : b) * 1.05,
+              minY: minVal - yPad,
+              maxY: maxVal + yPad,
               titlesData: const FlTitlesData(
                 topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),

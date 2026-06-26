@@ -34,6 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   int _overdueMeds = 0;
   int _pendingRounds = 0;
+  bool _extrasStale = false;
   Timer? _timer;
 
   @override
@@ -55,6 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadExtras() async {
+    if (mounted) setState(() => _extrasStale = false);
     try {
       final now = DateTime.now();
       final from = DateTime(now.year, now.month, now.day);
@@ -71,7 +73,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _pendingRounds = rounds.where((r) => !r.isDone && !r.skipped).length;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _extrasStale = true);
+    }
   }
 
   Future<void> _refresh() async {
@@ -124,7 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            if (residents.isStale || alerts.isStale)
+            if (residents.isStale || alerts.isStale || _extrasStale)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Row(

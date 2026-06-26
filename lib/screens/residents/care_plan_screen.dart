@@ -7,6 +7,7 @@ import '../../models/resident.dart';
 import '../../services/care_intervention_service.dart';
 import '../../services/care_plan_service.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 import '../../widgets/common/status_pill.dart';
 
@@ -94,16 +95,22 @@ class _CarePlanScreenState extends State<CarePlanScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-              : _sections.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.assignment_outlined,
-                      title: 'No care plan sections yet',
-                      subtitle: 'Tap + to add the first one.',
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.builder(
+              ? ErrorView(message: _error!, onRetry: _load)
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: _sections.isEmpty
+                      ? const SingleChildScrollView(
+                          physics: AlwaysScrollableScrollPhysics(),
+                          child: SizedBox(
+                            height: 400,
+                            child: EmptyState(
+                              icon: Icons.assignment_outlined,
+                              title: 'No care plan sections yet',
+                              subtitle: 'Tap + to add the first one.',
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
                         itemCount: _sections.length,
                         itemBuilder: (_, i) {

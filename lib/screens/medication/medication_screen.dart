@@ -310,20 +310,33 @@ class _MedicationScreenState extends State<MedicationScreen>
           : '';
       sub += '\nLast given: $time$carerPart';
     }
+    final inactive = !m.active;
     return Card(
+      color: inactive ? Colors.black.withValues(alpha: 0.03) : null,
       child: ListTile(
         leading: Icon(
           m.controlledDrug ? Icons.gpp_maybe : Icons.medication,
-          color: m.controlledDrug ? AppTheme.critical : AppTheme.primary,
+          color: inactive
+              ? Colors.black26
+              : m.controlledDrug
+                  ? AppTheme.critical
+                  : AppTheme.primary,
         ),
-        title: Text('${m.name} ${m.dose}',
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(sub),
+        title: Text(
+          '${m.name} ${m.dose}',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: inactive ? Colors.black38 : null,
+          ),
+        ),
+        subtitle: Text(sub, style: TextStyle(color: inactive ? Colors.black38 : null)),
         isThreeLine: true,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (m.controlledDrug)
+            if (inactive)
+              const StatusPill(label: 'Inactive', severity: 'low')
+            else if (m.controlledDrug)
               const StatusPill(label: 'CD', severity: 'high')
             else if (m.prn)
               const StatusPill(label: 'PRN', severity: 'medium'),
@@ -335,7 +348,7 @@ class _MedicationScreenState extends State<MedicationScreen>
             ),
           ],
         ),
-        onTap: () => _openAdministerPage(m),
+        onTap: inactive ? null : () => _openAdministerPage(m),
       ),
     );
   }

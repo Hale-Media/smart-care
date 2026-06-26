@@ -13,6 +13,7 @@ import '../medication/medication_screen.dart';
 import '../incidents/incident_form_screen.dart';
 import '../incidents/incidents_screen.dart';
 import 'advance_decisions_screen.dart';
+import 'chc_screen.dart';
 import 'capacity_assessments_screen.dart';
 import 'care_plan_screen.dart';
 import 'dols_screen.dart';
@@ -764,7 +765,10 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
         _section('GP', r.gpName?.ifEmptyDash() ?? '—'),
         _section(
           'Next of kin',
-          '${r.nextOfKin ?? '—'} ${r.nextOfKinPhone ?? ''}',
+          [
+            r.nextOfKin ?? '—',
+            if (r.nextOfKinPhone != null) r.nextOfKinPhone!,
+          ].join('\n'),
         ),
         const SizedBox(height: 20),
         ..._actionItems(r),
@@ -838,6 +842,11 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
         Navigator.of(context).push(
           MaterialPageRoute(
               builder: (_) => CapacityAssessmentsScreen(resident: r)),
+        );
+      }),
+      _ActionData('CHC Checklist', Icons.fact_check_outlined, () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ChcScreen(resident: r)),
         );
       }),
       _ActionData('Safeguarding', Icons.shield_outlined, () {
