@@ -30,4 +30,8 @@ $sql = "SELECT i.*, CONCAT(r.first_name,' ',r.last_name) AS resident_name,
 
 $stmt = db()->prepare($sql);
 $stmt->execute($params);
-respond(['incidents' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+foreach ($rows as &$row) {
+    $row['photos'] = json_decode($row['photos'] ?? '[]', true) ?? [];
+}
+respond(['incidents' => $rows]);

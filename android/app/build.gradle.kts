@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.care_package"
+    namespace = "com.example.smart_care"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.care_package"
+        applicationId = "com.example.smart_care"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

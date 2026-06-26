@@ -59,9 +59,6 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
   );
   late List<String> _conditions = List.from(widget.resident?.conditions ?? []);
   late List<String> _allergies = List.from(widget.resident?.allergies ?? []);
-  late List<String> _medications = List.from(
-    widget.resident?.medications ?? [],
-  );
   late List<String> _monitoringMethods = List.from(
     widget.resident?.monitoringMethods ?? const [],
   );
@@ -70,7 +67,6 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
   // anything typed but not yet committed as a chip.
   final _conditionsInput = TextEditingController();
   final _allergiesInput = TextEditingController();
-  final _medicationsInput = TextEditingController();
   late final _gp = TextEditingController(text: widget.resident?.gpName ?? '');
   late final _nextOfKin = TextEditingController(
     text: widget.resident?.nextOfKin ?? '',
@@ -179,7 +175,6 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
     _address.dispose();
     _conditionsInput.dispose();
     _allergiesInput.dispose();
-    _medicationsInput.dispose();
     _gp.dispose();
     _nextOfKin.dispose();
     _nextOfKinPhone.dispose();
@@ -220,7 +215,7 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
       dob: _dobDate,
       conditions: _flushTags(_conditionsInput, _conditions),
       allergies: _flushTags(_allergiesInput, _allergies),
-      medications: _flushTags(_medicationsInput, _medications),
+      medications: widget.resident?.medications ?? [],
       monitoringMethods: _monitoringMethods,
       nutritionRisk: _nutritionRisk,
       monitoringConsent: _monitoringConsent,
@@ -265,7 +260,7 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final r = widget.resident ?? _savedResident;
+    final r = _savedResident ?? widget.resident;
     return Scaffold(
       appBar: AppBar(
         title: Text(r == null ? 'Add resident' : r.fullName),
@@ -439,14 +434,6 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
                   inputController: _allergiesInput,
                   chipColor: AppTheme.critical,
                   onChanged: (v) => setState(() => _allergies = v),
-                ),
-                const SizedBox(height: 12),
-                _TagsField(
-                  label: 'Required medications',
-                  hint: 'e.g. Metformin 500mg',
-                  tags: _medications,
-                  inputController: _medicationsInput,
-                  onChanged: (v) => setState(() => _medications = v),
                 ),
                 const SizedBox(height: 12),
                 const Divider(),
@@ -744,10 +731,6 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
           _section('Home address', r.address!),
         _section('Conditions', r.conditions.join(', ').ifEmptyDash()),
         _section('Allergies', r.allergies.join(', ').ifEmptyDash()),
-        _section(
-          'Required medications',
-          r.medications.join(', ').ifEmptyDash(),
-        ),
         _section(
           'Monitoring methods',
           r.monitoringMethods

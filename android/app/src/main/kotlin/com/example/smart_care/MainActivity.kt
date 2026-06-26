@@ -1,4 +1,4 @@
-package com.example.care_package
+package com.example.smart_care
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -25,7 +25,7 @@ if (!$home) fail('Home not found in your company', 404);
 
 $token = jwt_encode([
     'sub' => $staffId, 'company' => $companyId, 'home' => (int)$home['id'],
-    'role' => $auth['role'], 'can_switch' => true,
+    'role' => $auth['role'], 'tv' => (int)($auth['tv'] ?? 0), 'can_switch' => true,
 ]);
 audit($staffId, 'switch_home', 'home', (int)$home['id']);
 

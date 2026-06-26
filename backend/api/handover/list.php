@@ -1,6 +1,6 @@
 <?php
 // GET /handover/list.php?limit=20
-require __DIR__ . '/../../config.php';
+require __DIR__ . '/../config.php';
 $auth = require_auth();
 $limit = max(1, min(100, (int)($_GET['limit'] ?? 20)));
 

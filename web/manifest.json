@@ -1,6 +1,6 @@
 {
-    "name": "care_package",
-    "short_name": "care_package",
+    "name": "smart_care",
+    "short_name": "smart_care",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

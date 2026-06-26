@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:care_package/main.dart';
+import 'package:smart_care/main.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {

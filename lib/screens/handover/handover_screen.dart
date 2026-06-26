@@ -5,6 +5,7 @@ import '../../models/handover_note.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/handover_service.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/error_view.dart';
 import '../../widgets/common/loading_view.dart';
 
 class HandoverScreen extends StatefulWidget {
@@ -17,6 +18,7 @@ class _HandoverScreenState extends State<HandoverScreen> {
   final _service = HandoverService();
   List<HandoverNote> _notes = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -25,10 +27,12 @@ class _HandoverScreenState extends State<HandoverScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
       _notes = await _service.list();
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -63,12 +67,14 @@ class _HandoverScreenState extends State<HandoverScreen> {
       ),
       body: _loading
           ? const LoadingView()
-          : _notes.isEmpty
-              ? const EmptyState(
-                  icon: Icons.swap_horiz,
-                  title: 'No handover notes',
-                  subtitle: 'Tap Write note to leave a message for the next shift.')
-              : RefreshIndicator(
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _notes.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.swap_horiz,
+                      title: 'No handover notes',
+                      subtitle: 'Tap Write note to leave a message for the next shift.')
+                  : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),

@@ -21,6 +21,26 @@ if (!$own->fetch()) fail('Incident not found', 404);
 $sets = [];
 $vals = [];
 
+if (array_key_exists('photos', $in)) {
+    $newPhotos = is_array($in['photos']) ? $in['photos'] : [];
+
+    // Fetch current photos so we can delete files that were removed.
+    $cur = db()->prepare('SELECT photos FROM incidents WHERE id = ?');
+    $cur->execute([$id]);
+    $existing = json_decode($cur->fetchColumn() ?? '[]', true) ?? [];
+
+    $uploadDir = rtrim($_SERVER['DOCUMENT_ROOT'], '/') . '/uploads/incident_photos/';
+    foreach (array_diff($existing, $newPhotos) as $url) {
+        $filename = basename(parse_url($url, PHP_URL_PATH));
+        // Only delete files that match our naming pattern (security guard).
+        if (preg_match('/^[a-f0-9]{32}\.(jpg|png|gif|webp)$/', $filename)) {
+            @unlink($uploadDir . $filename);
+        }
+    }
+
+    $sets[] = 'photos = ?';
+    $vals[] = json_encode($newPhotos);
+}
 foreach (['status', 'description', 'immediate_action', 'severity', 'location', 'injury_details', 'witnesses'] as $col) {
     if (array_key_exists($col, $in)) {
         $sets[] = "$col = ?";
@@ -51,4 +71,6 @@ $row = db()->prepare(
      WHERE i.id = ?"
 );
 $row->execute([$id]);
-respond(['incident' => $row->fetch()]);
+$result = $row->fetch();
+$result['photos'] = json_decode($result['photos'] ?? '[]', true) ?? [];
+respond(['incident' => $result]);

@@ -1,3 +1,4 @@
+import 'package:image_picker/image_picker.dart';
 import '../models/incident.dart';
 import 'api_client.dart';
 
@@ -24,5 +25,14 @@ class IncidentService {
   Future<Incident> update(Incident i) async {
     final res = await _api.post('/incidents/update.php', i.toJson());
     return Incident.fromJson(res['incident']);
+  }
+
+  Future<String> uploadPhoto(XFile file) async {
+    final res = await _api.uploadFile(
+      '/incidents/upload_photo.php',
+      file.path,
+      file.name,
+    );
+    return res['url'] as String;
   }
 }
