@@ -14,7 +14,8 @@ import '../../widgets/common/status_pill.dart';
 
 class MedicationScreen extends StatefulWidget {
   final Resident resident;
-  const MedicationScreen({super.key, required this.resident});
+  final int initialTab;
+  const MedicationScreen({super.key, required this.resident, this.initialTab = 0});
   @override
   State<MedicationScreen> createState() => _MedicationScreenState();
 }
@@ -31,7 +32,7 @@ class _MedicationScreenState extends State<MedicationScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
     _load();
   }
 
@@ -299,6 +300,86 @@ class _MedicationScreenState extends State<MedicationScreen>
     );
   }
 
+  Future<void> _confirmDelete(Medication m) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Deactivate medication?'),
+        content: Text('${m.name} ${m.dose} will be marked inactive. '
+            'MAR history is preserved.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.critical),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Deactivate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _service.delete(m.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${m.name} deactivated')),
+        );
+        _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
+  Future<void> _administerFromList(Medication m) async {
+    if (m.prn || m.times.isEmpty) {
+      _openAdministerPage(m);
+      return;
+    }
+    if (m.times.length == 1) {
+      _openAdministerPage(m, scheduledTime: m.times.first);
+      return;
+    }
+    // Multi-dose: ask which scheduled slot to record.
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(
+                'Which dose of ${m.name} ${m.dose}?',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+            ),
+            ...m.times.map(
+              (t) => ListTile(
+                leading: const Icon(Icons.schedule),
+                title: Text(t),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openAdministerPage(m, scheduledTime: t);
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _medTile(Medication m) {
     String sub =
         '${Labels.medicationRoute(m.route)} · ${m.prn ? 'PRN${m.prnReason != null ? ' – ${m.prnReason}' : ''}' : m.frequency}';
@@ -346,9 +427,17 @@ class _MedicationScreenState extends State<MedicationScreen>
               visualDensity: VisualDensity.compact,
               onPressed: () => _openAddMedPage(existing: m),
             ),
+            if (!inactive)
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                tooltip: 'Deactivate',
+                visualDensity: VisualDensity.compact,
+                color: AppTheme.critical,
+                onPressed: () => _confirmDelete(m),
+              ),
           ],
         ),
-        onTap: inactive ? null : () => _openAdministerPage(m),
+        onTap: inactive ? null : () => _administerFromList(m),
       ),
     );
   }
@@ -527,10 +616,8 @@ class _AdministerPageState extends State<_AdministerPage> {
     final h = int.tryParse(parts[0]);
     final m = int.tryParse(parts[1]);
     if (h == null || m == null) return DateTime.now().toUtc();
-    // Slot times in m.times are stored as UTC strings on the server.
-    // Build a UTC datetime so the backend's slot-time lookup matches.
-    final today = DateTime.now().toUtc();
-    return DateTime.utc(today.year, today.month, today.day, h, m);
+    final today = DateTime.now();
+    return DateTime(today.year, today.month, today.day, h, m);
   }
 
   Future<void> _submit() async {
@@ -846,6 +933,18 @@ class _AddMedicationPageState extends State<_AddMedicationPage> {
                         hintText: 'e.g. 08:00, 14:00, 20:00',
                         border: OutlineInputBorder(),
                       ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return null;
+                        final bad = v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).where((t) {
+                          final parts = t.split(':');
+                          if (parts.length != 2) return true;
+                          final h = int.tryParse(parts[0]);
+                          final m = int.tryParse(parts[1]);
+                          return h == null || m == null || h > 23 || m > 59;
+                        }).toList();
+                        if (bad.isEmpty) return null;
+                        return 'Invalid time(s): ${bad.join(', ')} — use HH:MM format';
+                      },
                     ),
                     const SizedBox(height: 8),
                   ],

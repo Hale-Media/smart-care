@@ -42,7 +42,7 @@ class DueMedication {
         dose: j['dose'] ?? '',
         controlledDrug:
             j['controlled_drug'] == true || j['controlled_drug'] == 1,
-        scheduledFor: DateTime.parse('${j['scheduled_for']}Z').toLocal(),
+        scheduledFor: DateTime.tryParse(j['scheduled_for'] ?? '') ?? DateTime.now(),
         given: j['given'] == true || j['given'] == 1,
         marEntryId: j['mar_entry_id'] as int?,
         outcome: j['outcome'] as String?,

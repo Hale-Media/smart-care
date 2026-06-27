@@ -17,6 +17,7 @@ import '../../widgets/common/status_pill.dart';
 import '../alerts/alert_detail_screen.dart';
 import '../compliance/compliance_dashboard_screen.dart';
 import '../handover/handover_screen.dart';
+import '../medication/overdue_meds_screen.dart';
 import '../../widgets/home_switcher.dart';
 import '../../widgets/home_cqc_badge.dart';
 
@@ -32,7 +33,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _medService = MedicationService();
   final _roundService = RoundService();
 
-  int _overdueMeds = 0;
+  List<DueMedication> _overdueMedsList = [];
+  int get _overdueMeds => _overdueMedsList.length;
   int _pendingRounds = 0;
   bool _extrasStale = false;
   Timer? _timer;
@@ -69,7 +71,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final rounds = results[1] as List<CareRound>;
       if (mounted) {
         setState(() {
-          _overdueMeds = meds.where((m) => m.isOverdue).length;
+          _overdueMedsList = meds.where((m) => m.isOverdue).toList();
           _pendingRounds = rounds.where((r) => !r.isDone && !r.skipped).length;
         });
       }
@@ -209,7 +211,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _kpi('Overdue meds', '$_overdueMeds',
               Icons.medication_outlined,
               _overdueMeds > 0 ? AppTheme.critical : AppTheme.ok,
-              () => widget.onNavigate(3)),
+              () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          OverdueMedsScreen(overdue: _overdueMedsList),
+                    ),
+                  ).then((_) => _loadExtras())),
           _kpi('Rounds due', '$_pendingRounds',
               Icons.checklist,
               _pendingRounds > 0 ? AppTheme.warning : AppTheme.ok,

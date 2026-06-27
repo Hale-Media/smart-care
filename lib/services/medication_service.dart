@@ -33,6 +33,9 @@ class MedicationService {
   Future<void> update(Medication m) =>
       _api.post('/medications/update.php', m.toJson());
 
+  Future<void> delete(int medicationId) =>
+      _api.post('/medications/delete.php', {'id': medicationId});
+
   Future<MarEntry> administer(MarEntry e) async {
     final res = await _api.post('/medications/administer.php', e.toJson());
     return MarEntry.fromJson(res['entry']);

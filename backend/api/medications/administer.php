@@ -18,9 +18,23 @@ $own = db()->prepare(
 $own->execute([$medicationId, (int)$auth['home']]);
 if (!$own->fetch()) fail('Medication not found', 404);
 
-$staffId      = (int)$auth['sub'];
-$administeredAt = $in['administered_at'] ?? date('Y-m-d H:i:s');
-$scheduledFor   = $in['scheduled_for']   ?? $administeredAt;
+$staffId = (int)$auth['sub'];
+
+// Flutter sends ISO-8601 with T separator and optional Z/fractional seconds
+// (e.g. "2026-06-27T08:00:00.000Z"). MySQL DATETIME rejects the Z suffix and
+// stores 0000-00-00, breaking the mar_due slot-match lookup. Strip to plain
+// "Y-m-d H:i:s", preserving the clock time without timezone conversion so it
+// stays consistent with the HH:MM values stored in medications.times.
+function normaliseDatetime(?string $val, string $fallback): string {
+    if ($val === null || $val === '') return $fallback;
+    $clean = preg_replace('/\.\d*Z?$/', '', str_replace('T', ' ', trim($val)));
+    // Validate result is a parseable datetime
+    return (strtotime($clean) !== false) ? $clean : $fallback;
+}
+
+$now            = date('Y-m-d H:i:s');
+$administeredAt = normaliseDatetime($in['administered_at'] ?? null, $now);
+$scheduledFor   = normaliseDatetime($in['scheduled_for']   ?? null, $administeredAt);
 
 $stmt = db()->prepare(
     "INSERT INTO mar_entries

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../models/due_medication.dart';
 import '../../models/resident.dart';
 import '../../providers/resident_provider.dart';
+import '../../services/medication_service.dart';
 import '../../services/resident_service.dart';
 import '../../utils/labels.dart';
 import '../../utils/validators.dart';
@@ -727,7 +729,9 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+        _TodayMedsCard(resident: r),
+        const SizedBox(height: 4),
         if (r.careLevel == 'home_care' && r.address != null)
           _section('Home address', r.address!),
         _section('Conditions', r.conditions.join(', ').ifEmptyDash()),
@@ -898,6 +902,168 @@ class _ActionData {
 
 extension _DashExt on String {
   String ifEmptyDash() => trim().isEmpty ? '—' : this;
+}
+
+// ── Today's medications checklist card ───────────────────────────────────────
+
+class _TodayMedsCard extends StatefulWidget {
+  final Resident resident;
+  const _TodayMedsCard({required this.resident});
+  @override
+  State<_TodayMedsCard> createState() => _TodayMedsCardState();
+}
+
+class _TodayMedsCardState extends State<_TodayMedsCard> {
+  final _service = MedicationService();
+  List<DueMedication> _slots = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() => _loading = true);
+    try {
+      final now = DateTime.now();
+      final all = await _service.dueMedications(
+        from: DateTime(now.year, now.month, now.day),
+        to: DateTime(now.year, now.month, now.day, 23, 59),
+      );
+      if (mounted) {
+        setState(() {
+          _slots = all
+              .where((m) => m.residentId == widget.resident.id)
+              .toList()
+            ..sort((a, b) => a.scheduledFor.compareTo(b.scheduledFor));
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final given = _slots.where((m) => m.given).length;
+    final total = _slots.length;
+    final hasOverdue = _slots.any((m) => m.isOverdue);
+    final headerColor = total == 0
+        ? Colors.black54
+        : hasOverdue
+            ? AppTheme.critical
+            : given == total
+                ? AppTheme.ok
+                : AppTheme.warning;
+
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                MedicationScreen(resident: widget.resident, initialTab: 1),
+          ),
+        ).then((_) => _load()),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.medication_outlined, size: 18, color: headerColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Today's medications",
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: headerColor),
+                  ),
+                  const Spacer(),
+                  if (!_loading && total > 0)
+                    Text('$given / $total',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: headerColor)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right,
+                      color: Colors.black38, size: 20),
+                ],
+              ),
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else if (_slots.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text('No medications scheduled today',
+                      style: TextStyle(color: Colors.black54, fontSize: 13)),
+                )
+              else ...[
+                const SizedBox(height: 10),
+                ..._slots.map(_slotRow),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _slotRow(DueMedication m) {
+    final Color color;
+    final IconData icon;
+    if (m.given) {
+      color = AppTheme.ok;
+      icon = Icons.check_circle;
+    } else if (m.isOverdue) {
+      color = AppTheme.critical;
+      icon = Icons.warning_amber_rounded;
+    } else {
+      color = Colors.black38;
+      icon = Icons.radio_button_unchecked;
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(m.timeLabel,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600, fontSize: 13)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('${m.name} ${m.dose}',
+                style: const TextStyle(fontSize: 13),
+                overflow: TextOverflow.ellipsis),
+          ),
+          if (m.controlledDrug)
+            const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Text('CD',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.critical)),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Chip / tag input field ─────────────────────────────────────────────────────
