@@ -22,7 +22,6 @@ import 'dols_screen.dart';
 import 'home_care_calls_screen.dart';
 import 'lasting_powers_screen.dart';
 import 'risk_assessment_screen.dart';
-import 'chc_screen.dart';
 import 'safeguarding_screen.dart';
 import 'visit_history_screen.dart';
 
@@ -255,7 +254,10 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
     final saved = await context.read<ResidentProvider>().save(r);
     if (!mounted) return;
     if (saved != null) {
-      setState(() { _editing = false; _savedResident = saved; });
+      setState(() {
+        _editing = false;
+        _savedResident = saved;
+      });
     } else {
       final err = context.read<ResidentProvider>().error ?? 'Failed to save';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
@@ -811,15 +813,13 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
       if (r.careLevel == 'home_care')
         _ActionData('Visit history', Icons.history_outlined, () {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => VisitHistoryScreen(resident: r),
-            ),
+            MaterialPageRoute(builder: (_) => VisitHistoryScreen(resident: r)),
           );
         }),
       _ActionData('Care plan', Icons.assignment_outlined, () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => CarePlanScreen(resident: r)),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => CarePlanScreen(resident: r)));
       }),
       _ActionData('Risk assessments', Icons.health_and_safety_outlined, () {
         Navigator.of(context).push(
@@ -827,46 +827,52 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
         );
       }),
       _ActionData('DoLS', Icons.lock_outlined, () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => DoLsScreen(resident: r)),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => DoLsScreen(resident: r)));
       }),
       _ActionData('Lasting Powers (LPA)', Icons.gavel_outlined, () {
         Navigator.of(context).push(
-          MaterialPageRoute(
-              builder: (_) => LastingPowersScreen(resident: r)),
+          MaterialPageRoute(builder: (_) => LastingPowersScreen(resident: r)),
         );
       }),
       _ActionData('Advance Decisions', Icons.do_not_disturb_on_outlined, () {
         Navigator.of(context).push(
           MaterialPageRoute(
-              builder: (_) => AdvanceDecisionsScreen(resident: r)),
+            builder: (_) => AdvanceDecisionsScreen(resident: r),
+          ),
         );
       }),
       _ActionData('Capacity (MCA)', Icons.psychology_outlined, () {
         Navigator.of(context).push(
           MaterialPageRoute(
-              builder: (_) => CapacityAssessmentsScreen(resident: r)),
+            builder: (_) => CapacityAssessmentsScreen(resident: r),
+          ),
         );
       }),
       _ActionData('CHC Checklist', Icons.fact_check_outlined, () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ChcScreen(resident: r)),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => ChcScreen(resident: r)));
       }),
       _ActionData('Safeguarding', Icons.shield_outlined, () {
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => SafeguardingScreen(resident: r)),
         );
       }),
-      _ActionData('NHS Continuing Healthcare (CHC)', Icons.health_and_safety_outlined, () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ChcScreen(resident: r)),
-        );
-      }),
+      _ActionData(
+        'NHS Continuing Healthcare (CHC)',
+        Icons.health_and_safety_outlined,
+        () {
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => ChcScreen(resident: r)));
+        },
+      ),
       _ActionData('Vitals / NEWS2', Icons.monitor_heart, () {
-        Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => VitalsScreen(resident: r)));
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => VitalsScreen(resident: r)));
       }),
       _ActionData('Medication (MAR)', Icons.medication, () {
         Navigator.of(context).push(
@@ -940,9 +946,7 @@ class _TodayMedsCardState extends State<_TodayMedsCard> {
       );
       if (mounted) {
         setState(() {
-          _slots = all
-              .where((m) => m.residentId == widget.resident.id)
-              .toList()
+          _slots = all.where((m) => m.residentId == widget.resident.id).toList()
             ..sort((a, b) => a.scheduledFor.compareTo(b.scheduledFor));
           _loading = false;
         });
@@ -960,10 +964,10 @@ class _TodayMedsCardState extends State<_TodayMedsCard> {
     final headerColor = total == 0
         ? Colors.black54
         : hasOverdue
-            ? AppTheme.critical
-            : given == total
-                ? AppTheme.ok
-                : AppTheme.warning;
+        ? AppTheme.critical
+        : given == total
+        ? AppTheme.ok
+        : AppTheme.warning;
 
     return Card(
       child: InkWell(
@@ -987,20 +991,27 @@ class _TodayMedsCardState extends State<_TodayMedsCard> {
                   Text(
                     "Today's medications",
                     style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        color: headerColor),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: headerColor,
+                    ),
                   ),
                   const Spacer(),
                   if (!_loading && total > 0)
-                    Text('$given / $total',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                            color: headerColor)),
+                    Text(
+                      '$given / $total',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: headerColor,
+                      ),
+                    ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right,
-                      color: Colors.black38, size: 20),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: Colors.black38,
+                    size: 20,
+                  ),
                 ],
               ),
               if (_loading)
@@ -1015,8 +1026,10 @@ class _TodayMedsCardState extends State<_TodayMedsCard> {
               else if (_slots.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 8),
-                  child: Text('No medications scheduled today',
-                      style: TextStyle(color: Colors.black54, fontSize: 13)),
+                  child: Text(
+                    'No medications scheduled today',
+                    style: TextStyle(color: Colors.black54, fontSize: 13),
+                  ),
                 )
               else ...[
                 const SizedBox(height: 10),
@@ -1048,23 +1061,29 @@ class _TodayMedsCardState extends State<_TodayMedsCard> {
         children: [
           Icon(icon, color: color, size: 18),
           const SizedBox(width: 8),
-          Text(m.timeLabel,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, fontSize: 13)),
+          Text(
+            m.timeLabel,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text('${m.name} ${m.dose}',
-                style: const TextStyle(fontSize: 13),
-                overflow: TextOverflow.ellipsis),
+            child: Text(
+              '${m.name} ${m.dose}',
+              style: const TextStyle(fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           if (m.controlledDrug)
             const Padding(
               padding: EdgeInsets.only(left: 4),
-              child: Text('CD',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.critical)),
+              child: Text(
+                'CD',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.critical,
+                ),
+              ),
             ),
         ],
       ),

@@ -19,6 +19,7 @@ import '../../widgets/common/status_pill.dart';
 import '../alerts/alert_detail_screen.dart';
 import '../compliance/compliance_dashboard_screen.dart';
 import '../handover/handover_screen.dart';
+import '../medication/medication_screen.dart';
 import '../medication/overdue_meds_screen.dart';
 import '../../widgets/home_switcher.dart';
 import '../../widgets/home_cqc_badge.dart';
@@ -36,6 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _roundService = RoundService();
   final _chcService = ChcService();
 
+  List<DueMedication> _allTodayMeds = [];
   List<DueMedication> _overdueMedsList = [];
   int get _overdueMeds => _overdueMedsList.length;
   int _pendingRounds = 0;
@@ -77,6 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final chc = results[2] as ChcSummary;
       if (mounted) {
         setState(() {
+          _allTodayMeds = meds;
           _overdueMedsList = meds.where((m) => m.isOverdue).toList();
           _pendingRounds = rounds.where((r) => !r.isDone && !r.skipped).length;
           _chc = chc;
@@ -169,6 +172,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             _kpiGrid(context, residents, alerts, incidents),
+            _DailyMedsCard(
+              meds: _allTodayMeds,
+              onRefresh: _loadExtras,
+            ),
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
@@ -276,6 +283,154 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Icon(Icons.chevron_right, size: 16, color: color),
                 ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Daily meds card on dashboard ─────────────────────────────────────────────
+
+class _DailyMedsCard extends StatelessWidget {
+  final List<DueMedication> meds;
+  final VoidCallback onRefresh;
+
+  const _DailyMedsCard({required this.meds, required this.onRefresh});
+
+  Map<int, List<DueMedication>> _byResident() {
+    final map = <int, List<DueMedication>>{};
+    for (final m in meds) {
+      map.putIfAbsent(m.residentId, () => []).add(m);
+    }
+    // Sort each resident's slots by time
+    for (final slots in map.values) {
+      slots.sort((a, b) => a.scheduledFor.compareTo(b.scheduledFor));
+    }
+    // Sort residents: overdue first, then pending, then all-given
+    final entries = map.entries.toList()
+      ..sort((a, b) {
+        final aOverdue = a.value.any((m) => m.isOverdue);
+        final bOverdue = b.value.any((m) => m.isOverdue);
+        if (aOverdue != bOverdue) return aOverdue ? -1 : 1;
+        final aAllGiven = a.value.every((m) => m.given);
+        final bAllGiven = b.value.every((m) => m.given);
+        if (aAllGiven != bAllGiven) return aAllGiven ? 1 : -1;
+        return a.value.first.residentName.compareTo(b.value.first.residentName);
+      });
+    return Map.fromEntries(entries);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (meds.isEmpty) return const SizedBox.shrink();
+
+    final given = meds.where((m) => m.given).length;
+    final total = meds.length;
+    final hasOverdue = meds.any((m) => m.isOverdue);
+    final headerColor = hasOverdue
+        ? AppTheme.critical
+        : given == total
+            ? AppTheme.ok
+            : AppTheme.warning;
+
+    final grouped = _byResident();
+    final residents = context.watch<ResidentProvider>();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.medication_outlined, size: 18, color: headerColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Today's medications",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: headerColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '$given / $total',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: headerColor,
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 18),
+              ...grouped.entries.map((e) {
+                final slots = e.value;
+                final resident = residents.byId(e.key);
+                final residentGiven = slots.where((m) => m.given).length;
+                final residentOverdue = slots.any((m) => m.isOverdue);
+                final residentAllGiven = residentGiven == slots.length;
+
+                final Color rowColor;
+                final IconData rowIcon;
+                if (residentOverdue) {
+                  rowColor = AppTheme.critical;
+                  rowIcon = Icons.warning_amber_rounded;
+                } else if (residentAllGiven) {
+                  rowColor = AppTheme.ok;
+                  rowIcon = Icons.check_circle;
+                } else {
+                  rowColor = Colors.black38;
+                  rowIcon = Icons.radio_button_unchecked;
+                }
+
+                return InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: resident == null
+                      ? null
+                      : () => Navigator.of(context)
+                            .push(MaterialPageRoute(
+                              builder: (_) => MedicationScreen(
+                                resident: resident,
+                                initialTab: 1,
+                              ),
+                            ))
+                            .then((_) => onRefresh()),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Icon(rowIcon, color: rowColor, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            slots.first.residentName,
+                            style: const TextStyle(fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '$residentGiven/${slots.length}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: rowColor,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.chevron_right,
+                            size: 16, color: Colors.black26),
+                      ],
+                    ),
+                  ),
+                );
+              }),
             ],
           ),
         ),

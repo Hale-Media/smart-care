@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../../config/theme.dart';
 import '../../models/chc_checklist.dart';
 import '../../models/resident.dart';
 import '../../services/chc_service.dart';
