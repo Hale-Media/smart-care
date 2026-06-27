@@ -23,7 +23,7 @@ Smart Care is a Flutter-based digital care management platform for residential c
 - **Compliance shortcut** — Card linking to the organisation-wide compliance dashboard
 - **Home identity** — Home name switcher and linked CQC registration badge shown in the header
 - **Auto-refresh** — Background `Timer` polls all four data sources every 60 seconds while the screen is mounted
-- **Stale data banner** — Shown when resident or alert data is being served from local cache after a network failure, with a Retry button
+- **Stale data banner** — Shown when resident, alert, or schedule data (overdue meds/rounds) is being served from local cache after a network failure, with a Retry button
 - **Pull-to-refresh** — Manual refresh of all data sources simultaneously
 
 ---
@@ -36,11 +36,11 @@ Smart Care is a Flutter-based digital care management platform for residential c
 - **Live search** — Filter by name + room number (residential) or name + address (home care)
 - **Status chips** — Visual indicators per tile: `DNACPR`, `FALL RISK` (high), `NUTRITION` (high risk), `REVIEW DUE` (outcome review date passed)
 - **Offline cache** — Resident list persisted to `SharedPreferences`; stale-data `MaterialBanner` with Retry shown when serving cached data
-- **Add resident / service user** — FAB opens create form, pre-seeted to the active tab's care level
+- **Add resident / service user** — FAB opens create form, pre-seeded to the active tab's care level
 
 ### Resident Profile
 
-- **Full profile editing** — First/last name, date of birth, room number, NHS number, address (home care), photo URL, GP name, next-of-kin name and phone
+- **Full profile editing** — First/last name, date of birth, room number, NHS number, address (home care), photo URL, GP name, next-of-kin name and phone (displayed on separate lines)
 - **Medical tags** — Chip-based entry for conditions, allergies, current medications, and monitoring methods; pending text auto-flushed on save
 - **Clinical flags** — DNACPR status, fall risk level, nutrition risk level, outcome review date
 - **Care level** — Residential, EMI, nursing, or home care; editable per resident
@@ -61,6 +61,7 @@ From a resident's profile, staff can navigate to:
 | LPA | Lasting Power of Attorney registrations |
 | Advance Decisions | Advance directives / ADRT records |
 | Capacity | Mental Capacity Assessments |
+| CHC Checklist | NHS Continuing Healthcare screening tool |
 | Safeguarding | Safeguarding concerns and referrals |
 | Calls / Visits | Home care call schedule and history |
 
@@ -68,7 +69,7 @@ From a resident's profile, staff can navigate to:
 
 ## Medications
 
-- **Active medication list** — All current prescribed medications per resident
+- **Active medication list** — All current prescribed medications per resident; inactive (discontinued) medications shown with muted styling, an Inactive pill, and administration disabled
 - **Schedule view** — Medications grouped by time slot (08:00, 12:00, etc.) with a `Give` button per slot
 - **Medication Administration Recording (MAR)** — Record outcome (`given`, `refused`, `omitted`, `unavailable`, `asleep`, `hospital`) with optional notes; `administered_at` and `scheduled_for` stored in UTC
 - **Controlled drug (CD) validation** — CD medications require a witness name before the Confirm button activates; server-side two-person witness enforcement via `cd_register`
@@ -95,8 +96,8 @@ From a resident's profile, staff can navigate to:
 
 - **Vital signs form** — Record heart rate, systolic/diastolic BP, SpO2, temperature, respiratory rate, and AVPU consciousness level
 - **NEWS2 auto-scoring** — Score calculated server-side on every recording using the Royal College of Physicians algorithm
-- **NEWS2 trend chart** — Line chart with date labels on the x-axis and horizontal risk-zone bands (green 0–4 low, amber 4–6 medium, red 6–14 high)
-- **Vital sparklines** — Four compact inline charts (HR, SpO2, systolic BP, temperature) each showing the trend and current value colour-coded against normal ranges
+- **NEWS2 trend chart** — Line chart with date labels on the x-axis and horizontal risk-zone bands (green 0–4 low, amber 4–6 medium, red 6–14 high); requires at least two readings
+- **Vital sparklines** — Four compact inline charts (HR, SpO2, systolic BP, temperature) each showing the trend and current value colour-coded against normal ranges; requires at least two data points per vital
 - **History list** — Full chronological list of readings with NEWS2 score and recording timestamp
 
 ---
@@ -104,7 +105,7 @@ From a resident's profile, staff can navigate to:
 ## Handover
 
 - **Create handover note** — Free-text notes tagged to a shift with timestamp and author
-- **Shift list** — View notes by shift; most recent shown on the dashboard
+- **Shift list** — View notes by shift; most recent shown on the dashboard; pull-to-refresh available even when the list is empty
 - **Read mode** — Previous shift's notes surfaced first when entering the handover screen
 
 ---
@@ -133,8 +134,9 @@ From a resident's profile, staff can navigate to:
 ## Incidents
 
 - **Report incident** — Log an incident with type, description, date/time, and optional resident link; incidents can be home-wide or resident-specific
+- **Photo evidence** — Attach up to 4 photos per incident report
 - **Status filtering** — View open vs. resolved incidents separately
-- **Update status** — Change incident status (e.g. open → under investigation → resolved)
+- **Update status** — Progress an incident through `open` → `investigating` → `closed`; each transition gated to the correct prior state
 - **Open incident count** — Exposed to the dashboard KPI tile
 
 ---
@@ -165,6 +167,18 @@ From a resident's profile, staff can navigate to:
 - Outcome: `has capacity` or `lacks capacity`
 - Assessment date, assessor, and supporting rationale stored
 
+### NHS Continuing Healthcare (CHC) Checklist
+
+- 11-domain screening tool: breathing, nutrition, continence, skin, mobility, communication, psychological, cognition, behaviour, drug therapies, and altered states of consciousness
+- Each domain scored A / B / C with free-text evidence notes per domain
+- Server-side outcome computation per the National Framework thresholds — positive triggers a referral for a full DST assessment; negative requires no referral
+- Four priority domains marked with `*` — a single A score in any priority domain alone forces a positive outcome
+- Draft / sign-off workflow — checklists saved as drafts until signed off by a senior or registered role; completed checklists are read-only
+- Person-involved and representative-involvement flags recorded at sign-off alongside assessor name, role, and organisation
+- In-app PDF print (A4 layout matching the gov.uk form structure) with a DRAFT watermark on unsigned records
+- All writes require a senior/registered role; soft-delete restricted to drafts only
+- Full audit trail via `AuditedRepository`
+
 ### Safeguarding
 
 - Log safeguarding concerns with category (physical, financial, emotional, etc.) and status
@@ -179,7 +193,7 @@ From a resident's profile, staff can navigate to:
 
 - Organisation-wide compliance overview covering: consent records, overdue outcome reviews, missed visits, high-risk residents, and staff competency status
 - Linked action tiles navigate directly to the relevant resident or staff record
-- Error surface with Retry for each section independently
+- Pull-to-refresh and shared error view with Retry consistent with all other screens
 
 ### CQC
 
@@ -261,6 +275,7 @@ From a resident's profile, staff can navigate to:
 | LPA | Create, update, delete, list |
 | Advance Decisions | Create, update, delete, list |
 | Capacity Assessments | Create, update, delete, list |
+| CHC Checklist | Create draft, update draft, sign off, list, get detail, delete draft, print-ready HTML |
 | Safeguarding | Create, update, delete, list |
 | Staff | CRUD, competency create/list/delete, competency summary |
 | Compliance | Organisation-wide summary |
@@ -273,4 +288,4 @@ From a resident's profile, staff can navigate to:
 
 ## Data Models
 
-`Resident` · `CareRound` · `DueMedication` · `Medication` · `MarEntry` · `VitalReading` · `CareAlert` · `Incident` · `HandoverNote` · `HomeCareCall` · `CarePlanSection` · `RiskAssessment` · `CareIntervention` · `DoLsAuthorisation` · `LastingPower` · `AdvanceDecision` · `CapacityAssessment` · `SafeguardingConcern` · `StaffUser` · `StaffCompetencyRecord` · `StaffCompetencySummary` · `ComplianceSummary` · `CqcLocation` · `Home` · `GdprExport`
+`Resident` · `CareRound` · `DueMedication` · `Medication` · `MarEntry` · `VitalReading` · `CareAlert` · `Incident` · `HandoverNote` · `HomeCareCall` · `CarePlanSection` · `RiskAssessment` · `CareIntervention` · `DoLsAuthorisation` · `LastingPower` · `AdvanceDecision` · `CapacityAssessment` · `ChcChecklist` · `ChcDomain` · `SafeguardingConcern` · `StaffUser` · `StaffCompetencyRecord` · `StaffCompetencySummary` · `ComplianceSummary` · `CqcLocation` · `Home` · `GdprExport`

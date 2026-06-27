@@ -33,7 +33,7 @@ dependencies:
   geolocator: ^14.0.2
 
   # Notifications (local; FCM optional, no Firebase by default)
-  flutter_local_notifications: ^21.0.0
+  flutter_local_notifications: ^22.0.1
 
   # Charts
   fl_chart: ^1.2.0

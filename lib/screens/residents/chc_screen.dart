@@ -107,7 +107,9 @@ class _ChcScreenState extends State<ChcScreen> {
         _load();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('$e')));
         }
       }
     }
@@ -119,7 +121,9 @@ class _ChcScreenState extends State<ChcScreen> {
       appBar: AppBar(
         leading: BackButton(onPressed: () => Navigator.of(context).pop()),
         title: Text('CHC Checklist · ${widget.resident.firstName}'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
@@ -140,41 +144,43 @@ class _ChcScreenState extends State<ChcScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-              : _checklists.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.fact_check_outlined,
-                      title: 'No CHC checklists',
-                      subtitle: 'Tap + to complete the national screening checklist.',
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
-                        itemCount: _checklists.length,
-                        itemBuilder: (_, i) {
-                          final c = _checklists[i];
-                          return _ChcCard(
-                            checklist: c,
-                            onTap: () async {
-                              final changed = await Navigator.of(context).push<bool>(
-                                MaterialPageRoute(
-                                  builder: (_) => _ChcFormScreen(
-                                    residentId: widget.resident.id,
-                                    residentName: widget.resident.fullName,
-                                    service: _service,
-                                    existingId: c.id,
-                                    readOnly: c.isCompleted,
-                                  ),
-                                ),
-                              );
-                              if (changed == true) _load();
-                            },
-                            onDelete: c.isCompleted ? null : () => _confirmDelete(c),
-                          );
-                        },
-                      ),
-                    ),
+          ? Center(
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            )
+          : _checklists.isEmpty
+          ? const EmptyState(
+              icon: Icons.fact_check_outlined,
+              title: 'No CHC checklists',
+              subtitle: 'Tap + to complete the national screening checklist.',
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
+                itemCount: _checklists.length,
+                itemBuilder: (_, i) {
+                  final c = _checklists[i];
+                  return _ChcCard(
+                    checklist: c,
+                    onTap: () async {
+                      final changed = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                          builder: (_) => _ChcFormScreen(
+                            residentId: widget.resident.id,
+                            residentName: widget.resident.fullName,
+                            service: _service,
+                            existingId: c.id,
+                            readOnly: c.isCompleted,
+                          ),
+                        ),
+                      );
+                      if (changed == true) _load();
+                    },
+                    onDelete: c.isCompleted ? null : () => _confirmDelete(c),
+                  );
+                },
+              ),
+            ),
     );
   }
 }
@@ -186,17 +192,15 @@ class _ChcCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onDelete;
 
-  const _ChcCard({
-    required this.checklist,
-    required this.onTap,
-    this.onDelete,
-  });
+  const _ChcCard({required this.checklist, required this.onTap, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
     final c = checklist;
     final fmt = DateFormat('d MMM yyyy');
-    final outcomeColor = c.isPositive ? Colors.orange[700]! : Colors.green[700]!;
+    final outcomeColor = c.isPositive
+        ? Colors.orange[700]!
+        : Colors.green[700]!;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -212,7 +216,10 @@ class _ChcCard extends StatelessWidget {
                 children: [
                   Text(
                     fmt.format(c.createdAt),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
                   ),
                   const Spacer(),
                   StatusPill(
@@ -222,7 +229,11 @@ class _ChcCard extends StatelessWidget {
                   if (onDelete != null) ...[
                     const SizedBox(width: 4),
                     IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 18, color: Colors.black38),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: Colors.black38,
+                      ),
                       onPressed: onDelete,
                       tooltip: 'Delete draft',
                       padding: EdgeInsets.zero,
@@ -233,11 +244,16 @@ class _ChcCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: outcomeColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: outcomeColor.withValues(alpha: 0.4)),
+                  border: Border.all(
+                    color: outcomeColor.withValues(alpha: 0.4),
+                  ),
                 ),
                 child: Text(
                   c.isPositive
@@ -364,7 +380,9 @@ class _ChcFormScreenState extends State<_ChcFormScreen> {
       for (final k in _kDomainKeys)
         k: ChcDomain(
           level: _levels[k]!,
-          evidence: _evidence[k]!.text.trim().isEmpty ? null : _evidence[k]!.text.trim(),
+          evidence: _evidence[k]!.text.trim().isEmpty
+              ? null
+              : _evidence[k]!.text.trim(),
         ),
     };
   }
@@ -379,7 +397,9 @@ class _ChcFormScreenState extends State<_ChcFormScreen> {
         await widget.service.create(
           residentId: widget.residentId,
           domains: _buildDomains(),
-          rationale: _rationaleCtrl.text.trim().isEmpty ? null : _rationaleCtrl.text.trim(),
+          rationale: _rationaleCtrl.text.trim().isEmpty
+              ? null
+              : _rationaleCtrl.text.trim(),
           personInvolved: _personInvolved,
           representativeName: _representativeNameCtrl.text.trim().isEmpty
               ? null
@@ -390,7 +410,9 @@ class _ChcFormScreenState extends State<_ChcFormScreen> {
         await widget.service.update(
           widget.existingId!,
           domains: _buildDomains(),
-          rationale: _rationaleCtrl.text.trim().isEmpty ? null : _rationaleCtrl.text.trim(),
+          rationale: _rationaleCtrl.text.trim().isEmpty
+              ? null
+              : _rationaleCtrl.text.trim(),
           personInvolved: _personInvolved,
           representativeName: _representativeNameCtrl.text.trim().isEmpty
               ? null
@@ -410,7 +432,8 @@ class _ChcFormScreenState extends State<_ChcFormScreen> {
     final done = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _CompleteSheet(id: widget.existingId!, service: widget.service),
+      builder: (_) =>
+          _CompleteSheet(id: widget.existingId!, service: widget.service),
     );
     if (done == true && mounted) Navigator.of(context).pop(true);
   }
@@ -427,8 +450,8 @@ class _ChcFormScreenState extends State<_ChcFormScreen> {
           readOnly
               ? 'CHC Checklist (Completed)'
               : isNew
-                  ? 'New CHC Checklist'
-                  : 'Edit CHC Checklist',
+              ? 'New CHC Checklist'
+              : 'Edit CHC Checklist',
         ),
         actions: [
           if (!isNew)
@@ -470,7 +493,9 @@ class _ChcFormScreenState extends State<_ChcFormScreen> {
                             ? const SizedBox(
                                 height: 18,
                                 width: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text('Save'),
                       ),
@@ -482,94 +507,100 @@ class _ChcFormScreenState extends State<_ChcFormScreen> {
       body: _loading
           ? const LoadingView()
           : _error != null && _existing == null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
-                  children: [
-                    if (_existing?.isCompleted == true) ...[
-                      _OutcomeBanner(checklist: _existing!),
-                      const SizedBox(height: 12),
-                    ],
-                    const Text(
-                      'Care domains',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Score A (most severe) · B · C (lowest). '
-                      'Priority domains (★) trigger a positive outcome on a single A.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 12),
-                    for (final key in _kDomainKeys)
-                      _DomainRow(
-                        domainKey: key,
-                        label: _kDomainLabels[key]!,
-                        priority: _kPriorityDomains.contains(key),
-                        level: _levels[key]!,
-                        evidenceCtrl: _evidence[key]!,
-                        readOnly: readOnly,
-                        onLevelChanged: readOnly
-                            ? null
-                            : (v) => setState(() => _levels[key] = v),
-                      ),
-                    const SizedBox(height: 16),
-                    const Divider(),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Involvement & rationale',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const SizedBox(height: 8),
-                    CheckboxListTile(
-                      value: _personInvolved,
-                      onChanged: readOnly
-                          ? null
-                          : (v) => setState(() => _personInvolved = v ?? false),
-                      title: const Text('Person was involved in this checklist'),
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                    ),
-                    CheckboxListTile(
-                      value: _representativeInvolved,
-                      onChanged: readOnly
-                          ? null
-                          : (v) => setState(() => _representativeInvolved = v ?? false),
-                      title: const Text('Representative was involved'),
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                    ),
-                    if (_representativeInvolved) ...[
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _representativeNameCtrl,
-                        readOnly: readOnly,
-                        decoration: const InputDecoration(labelText: 'Representative name'),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _rationaleCtrl,
-                      readOnly: readOnly,
-                      maxLines: 4,
-                      minLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Rationale / additional notes',
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    if (_existing?.isCompleted == true) ...[
-                      const SizedBox(height: 16),
-                      const Divider(),
-                      const SizedBox(height: 12),
-                      _AssessorSection(checklist: _existing!),
-                    ],
-                    if (_error != null) ...[
-                      const SizedBox(height: 12),
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                    ],
-                  ],
+          ? Center(
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            )
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
+              children: [
+                if (_existing?.isCompleted == true) ...[
+                  _OutcomeBanner(checklist: _existing!),
+                  const SizedBox(height: 12),
+                ],
+                const Text(
+                  'Care domains',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  'Score A (most severe) · B · C (lowest). '
+                  'Priority domains (★) trigger a positive outcome on a single A.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 12),
+                for (final key in _kDomainKeys)
+                  _DomainRow(
+                    domainKey: key,
+                    label: _kDomainLabels[key]!,
+                    priority: _kPriorityDomains.contains(key),
+                    level: _levels[key]!,
+                    evidenceCtrl: _evidence[key]!,
+                    readOnly: readOnly,
+                    onLevelChanged: readOnly
+                        ? null
+                        : (v) => setState(() => _levels[key] = v),
+                  ),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 12),
+                const Text(
+                  'Involvement & rationale',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  value: _personInvolved,
+                  onChanged: readOnly
+                      ? null
+                      : (v) => setState(() => _personInvolved = v ?? false),
+                  title: const Text('Person was involved in this checklist'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                CheckboxListTile(
+                  value: _representativeInvolved,
+                  onChanged: readOnly
+                      ? null
+                      : (v) => setState(
+                          () => _representativeInvolved = v ?? false,
+                        ),
+                  title: const Text('Representative was involved'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                if (_representativeInvolved) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _representativeNameCtrl,
+                    readOnly: readOnly,
+                    decoration: const InputDecoration(
+                      labelText: 'Representative name',
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _rationaleCtrl,
+                  readOnly: readOnly,
+                  maxLines: 4,
+                  minLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Rationale / additional notes',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                if (_existing?.isCompleted == true) ...[
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  _AssessorSection(checklist: _existing!),
+                ],
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                ],
+              ],
+            ),
     );
   }
 }
@@ -596,10 +627,10 @@ class _DomainRow extends StatelessWidget {
   });
 
   Color _levelColor(String l) => switch (l) {
-        'A' => Colors.red[700]!,
-        'B' => Colors.orange[700]!,
-        _ => Colors.green[700]!,
-      };
+    'A' => Colors.red[700]!,
+    'B' => Colors.orange[700]!,
+    _ => Colors.green[700]!,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -619,7 +650,10 @@ class _DomainRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     label,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ],
@@ -627,11 +661,16 @@ class _DomainRow extends StatelessWidget {
             const SizedBox(height: 8),
             readOnly
                 ? Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: _levelColor(level).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _levelColor(level).withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: _levelColor(level).withValues(alpha: 0.4),
+                      ),
                     ),
                     child: Text(
                       'Level $level',
@@ -692,7 +731,9 @@ class _OutcomeBanner extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            positive ? Icons.assignment_late_outlined : Icons.check_circle_outline,
+            positive
+                ? Icons.assignment_late_outlined
+                : Icons.check_circle_outline,
             color: color,
           ),
           const SizedBox(width: 10),
@@ -708,7 +749,10 @@ class _OutcomeBanner extends StatelessWidget {
                   positive
                       ? 'Refer for full CHC Decision Support Tool assessment'
                       : 'Individual does not meet the CHC threshold at this time',
-                  style: TextStyle(fontSize: 12, color: color.withValues(alpha: 0.85)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: color.withValues(alpha: 0.85),
+                  ),
                 ),
               ],
             ),
@@ -732,7 +776,10 @@ class _AssessorSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Assessor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        const Text(
+          'Assessor',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
         const SizedBox(height: 6),
         if (c.assessorName != null) Text('Name: ${c.assessorName}'),
         if (c.assessorRole != null) Text('Role: ${c.assessorRole}'),
@@ -778,8 +825,12 @@ class _CompleteSheetState extends State<_CompleteSheet> {
     try {
       await widget.service.complete(
         widget.id,
-        assessorName: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
-        assessorRole: _roleCtrl.text.trim().isEmpty ? null : _roleCtrl.text.trim(),
+        assessorName: _nameCtrl.text.trim().isEmpty
+            ? null
+            : _nameCtrl.text.trim(),
+        assessorRole: _roleCtrl.text.trim().isEmpty
+            ? null
+            : _roleCtrl.text.trim(),
         assessorOrg: _orgCtrl.text.trim().isEmpty ? null : _orgCtrl.text.trim(),
       );
       if (mounted) Navigator.of(context).pop(true);
@@ -902,231 +953,249 @@ Future<Uint8List> _buildChcPdf(ChcChecklist c, String residentName) async {
   final headerColor = PdfColor.fromHex('0B2E33');
   final outcomeColor = positive ? PdfColors.orange800 : PdfColors.green800;
 
-  doc.addPage(pw.MultiPage(
-    pageFormat: PdfPageFormat.a4,
-    margin: const pw.EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-    header: (_) => pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        if (c.status == 'draft')
+  doc.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.symmetric(horizontal: 36, vertical: 32),
+      header: (_) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          if (c.status == 'draft')
+            pw.Text(
+              'DRAFT - NOT SIGNED OFF',
+              style: const pw.TextStyle(
+                color: PdfColors.red700,
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 9,
+              ),
+            ),
           pw.Text(
-            'DRAFT - NOT SIGNED OFF',
-            style: pw.TextStyle(
-              color: PdfColors.red700,
+            'NHS Continuing Healthcare - Checklist',
+            style: const pw.TextStyle(
+              fontSize: 16,
               fontWeight: pw.FontWeight.bold,
-              fontSize: 9,
             ),
           ),
-        pw.Text(
-          'NHS Continuing Healthcare - Checklist',
-          style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
-        ),
-        pw.Text(
-          'Screening tool to identify the need for a full assessment of eligibility.',
-          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
-        ),
-        pw.SizedBox(height: 6),
-        pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-          children: [
-            pw.TableRow(children: [
-              _metaCell('Name', residentName),
-              _metaCell(
-                'Date',
-                c.completedAt != null
-                    ? fmt.format(c.completedAt!)
-                    : c.status == 'draft'
+          pw.Text(
+            'Screening tool to identify the need for a full assessment of eligibility.',
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+          ),
+          pw.SizedBox(height: 6),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+            children: [
+              pw.TableRow(
+                children: [
+                  _metaCell('Name', residentName),
+                  _metaCell(
+                    'Date',
+                    c.completedAt != null
+                        ? fmt.format(c.completedAt!)
+                        : c.status == 'draft'
                         ? 'Draft - ${fmt.format(c.createdAt)}'
                         : '-',
+                  ),
+                ],
               ),
-            ]),
-            pw.TableRow(children: [
-              _metaCell('Person involved', c.personInvolved ? 'Yes' : 'No'),
-              _metaCell(
-                'Representative',
-                c.representativeName != null
-                    ? '${c.representativeName} (${c.representativeInvolved ? 'involved' : 'not involved'})'
-                    : c.representativeInvolved
+              pw.TableRow(
+                children: [
+                  _metaCell('Person involved', c.personInvolved ? 'Yes' : 'No'),
+                  _metaCell(
+                    'Representative',
+                    c.representativeName != null
+                        ? '${c.representativeName} (${c.representativeInvolved ? 'involved' : 'not involved'})'
+                        : c.representativeInvolved
                         ? 'Involved'
                         : 'Not involved',
+                  ),
+                ],
               ),
-            ]),
-          ],
-        ),
-        pw.SizedBox(height: 4),
-        pw.Divider(thickness: 0.5),
-      ],
-    ),
-    build: (_) => [
-      pw.Table(
-        border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-        columnWidths: {
-          0: const pw.FixedColumnWidth(18),
-          1: const pw.FlexColumnWidth(),
-          2: const pw.FixedColumnWidth(22),
-          3: const pw.FixedColumnWidth(22),
-          4: const pw.FixedColumnWidth(22),
-        },
-        children: [
-          pw.TableRow(
-            decoration: pw.BoxDecoration(color: headerColor),
-            children: [
-              _thCell('#'),
-              _thCell('Care domain'),
-              _thCell('A'),
-              _thCell('B'),
-              _thCell('C'),
             ],
           ),
-          for (var i = 0; i < _kDomainKeys.length; i++) ...[
-            pw.TableRow(children: [
-              _tdNum('${i + 1}'),
-              pw.Padding(
-                padding: const pw.EdgeInsets.fromLTRB(4, 3, 4, 1),
-                child: pw.Text(
-                  _kDomainLabels[_kDomainKeys[i]]! +
-                      (_kPriorityDomains.contains(_kDomainKeys[i]) ? ' *' : ''),
-                  style: const pw.TextStyle(fontSize: 8),
-                ),
-              ),
-              _levelCell(c.domains?[_kDomainKeys[i]]?.level, 'A'),
-              _levelCell(c.domains?[_kDomainKeys[i]]?.level, 'B'),
-              _levelCell(c.domains?[_kDomainKeys[i]]?.level, 'C'),
-            ]),
-            pw.TableRow(children: [
-              pw.SizedBox(),
-              pw.Padding(
-                padding: const pw.EdgeInsets.fromLTRB(4, 1, 4, 3),
-                child: pw.Text(
-                  c.domains?[_kDomainKeys[i]]?.evidence ??
-                      'No evidence recorded.',
-                  style: pw.TextStyle(
-                    fontSize: 7,
-                    color: c.domains?[_kDomainKeys[i]]?.evidence != null
-                        ? PdfColors.grey800
-                        : PdfColors.grey500,
-                    fontStyle:
-                        c.domains?[_kDomainKeys[i]]?.evidence != null
-                            ? pw.FontStyle.normal
-                            : pw.FontStyle.italic,
-                  ),
-                ),
-              ),
-              pw.SizedBox(),
-              pw.SizedBox(),
-              pw.SizedBox(),
-            ]),
-          ],
+          pw.SizedBox(height: 4),
+          pw.Divider(thickness: 0.5),
         ],
       ),
-      pw.SizedBox(height: 3),
-      pw.Text(
-        '* Priority domain - a single A in any of these triggers a positive outcome.',
-        style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),
-      ),
-      pw.SizedBox(height: 10),
-      pw.Container(
-        padding: const pw.EdgeInsets.all(8),
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: outcomeColor, width: 1.5),
-          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-        ),
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
+      build: (_) => [
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+          columnWidths: {
+            0: const pw.FixedColumnWidth(18),
+            1: const pw.FlexColumnWidth(),
+            2: const pw.FixedColumnWidth(22),
+            3: const pw.FixedColumnWidth(22),
+            4: const pw.FixedColumnWidth(22),
+          },
           children: [
-            pw.Text(
-              positive
-                  ? 'POSITIVE - referral for full assessment is necessary'
-                  : 'NEGATIVE - no referral for full assessment is necessary',
-              style: pw.TextStyle(
-                fontSize: 10,
-                fontWeight: pw.FontWeight.bold,
-                color: outcomeColor,
+            pw.TableRow(
+              decoration: pw.BoxDecoration(color: headerColor),
+              children: [
+                _thCell('#'),
+                _thCell('Care domain'),
+                _thCell('A'),
+                _thCell('B'),
+                _thCell('C'),
+              ],
+            ),
+            for (var i = 0; i < _kDomainKeys.length; i++) ...[
+              pw.TableRow(
+                children: [
+                  _tdNum('${i + 1}'),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.fromLTRB(4, 3, 4, 1),
+                    child: pw.Text(
+                      _kDomainLabels[_kDomainKeys[i]]! +
+                          (_kPriorityDomains.contains(_kDomainKeys[i])
+                              ? ' *'
+                              : ''),
+                      style: const pw.TextStyle(fontSize: 8),
+                    ),
+                  ),
+                  _levelCell(c.domains?[_kDomainKeys[i]]?.level, 'A'),
+                  _levelCell(c.domains?[_kDomainKeys[i]]?.level, 'B'),
+                  _levelCell(c.domains?[_kDomainKeys[i]]?.level, 'C'),
+                ],
               ),
-            ),
-            pw.SizedBox(height: 3),
-            pw.Text(
-              'Totals - A: ${c.countA}   B: ${c.countB}   C: ${c.countC}',
-              style: const pw.TextStyle(fontSize: 8),
-            ),
-            if (c.rationale != null) ...[
-              pw.SizedBox(height: 3),
-              pw.Text(
-                'Rationale: ${c.rationale}',
-                style: const pw.TextStyle(fontSize: 8),
+              pw.TableRow(
+                children: [
+                  pw.SizedBox(),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.fromLTRB(4, 1, 4, 3),
+                    child: pw.Text(
+                      c.domains?[_kDomainKeys[i]]?.evidence ??
+                          'No evidence recorded.',
+                      style: pw.TextStyle(
+                        fontSize: 7,
+                        color: c.domains?[_kDomainKeys[i]]?.evidence != null
+                            ? PdfColors.grey800
+                            : PdfColors.grey500,
+                        fontStyle: c.domains?[_kDomainKeys[i]]?.evidence != null
+                            ? pw.FontStyle.normal
+                            : pw.FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(),
+                  pw.SizedBox(),
+                  pw.SizedBox(),
+                ],
               ),
             ],
           ],
         ),
-      ),
-      if (c.isCompleted) ...[
+        pw.SizedBox(height: 3),
+        pw.Text(
+          '* Priority domain - a single A in any of these triggers a positive outcome.',
+          style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),
+        ),
         pw.SizedBox(height: 10),
-        pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-          children: [
-            pw.TableRow(children: [
-              _metaCell('Assessor', c.assessorName ?? '-'),
-              _metaCell('Role', c.assessorRole ?? '-'),
-            ]),
-            pw.TableRow(children: [
-              _metaCell('Organisation', c.assessorOrg ?? '-'),
-              _metaCell(
-                'Signed off',
-                c.completedAt != null ? fmt.format(c.completedAt!) : '-',
+        pw.Container(
+          padding: const pw.EdgeInsets.all(8),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: outcomeColor, width: 1.5),
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                positive
+                    ? 'POSITIVE - referral for full assessment is necessary'
+                    : 'NEGATIVE - no referral for full assessment is necessary',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: outcomeColor,
+                ),
               ),
-            ]),
-          ],
+              pw.SizedBox(height: 3),
+              pw.Text(
+                'Totals - A: ${c.countA}   B: ${c.countB}   C: ${c.countC}',
+                style: const pw.TextStyle(fontSize: 8),
+              ),
+              if (c.rationale != null) ...[
+                pw.SizedBox(height: 3),
+                pw.Text(
+                  'Rationale: ${c.rationale}',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (c.isCompleted) ...[
+          pw.SizedBox(height: 10),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+            children: [
+              pw.TableRow(
+                children: [
+                  _metaCell('Assessor', c.assessorName ?? '-'),
+                  _metaCell('Role', c.assessorRole ?? '-'),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  _metaCell('Organisation', c.assessorOrg ?? '-'),
+                  _metaCell(
+                    'Signed off',
+                    c.completedAt != null ? fmt.format(c.completedAt!) : '-',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+        pw.SizedBox(height: 12),
+        pw.Text(
+          'A positive checklist does not mean eligibility for NHS CHC - a full assessment is required. '
+          'Generated by Smart Care on ${fmt.format(DateTime.now())}. Record ID ${c.id}.',
+          style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),
         ),
       ],
-      pw.SizedBox(height: 12),
-      pw.Text(
-        'A positive checklist does not mean eligibility for NHS CHC - a full assessment is required. '
-        'Generated by Smart Care on ${fmt.format(DateTime.now())}. Record ID ${c.id}.',
-        style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey),
-      ),
-    ],
-  ));
+    ),
+  );
 
   return doc.save();
 }
 
 pw.Widget _metaCell(String label, String value) => pw.Padding(
-      padding: const pw.EdgeInsets.all(4),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontSize: 7,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.grey700,
-            ),
-          ),
-          pw.Text(value, style: const pw.TextStyle(fontSize: 9)),
-        ],
-      ),
-    );
-
-pw.Widget _thCell(String text) => pw.Padding(
-      padding: const pw.EdgeInsets.all(4),
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(
-          fontSize: 8,
+  padding: const pw.EdgeInsets.all(4),
+  child: pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Text(
+        label,
+        style: const pw.TextStyle(
+          fontSize: 7,
           fontWeight: pw.FontWeight.bold,
-          color: PdfColors.white,
+          color: PdfColors.grey700,
         ),
       ),
-    );
+      pw.Text(value, style: const pw.TextStyle(fontSize: 9)),
+    ],
+  ),
+);
+
+pw.Widget _thCell(String text) => pw.Padding(
+  padding: const pw.EdgeInsets.all(4),
+  child: pw.Text(
+    text,
+    style: const pw.TextStyle(
+      fontSize: 8,
+      fontWeight: pw.FontWeight.bold,
+      color: PdfColors.white,
+    ),
+  ),
+);
 
 pw.Widget _tdNum(String text) => pw.Padding(
-      padding: const pw.EdgeInsets.all(4),
-      child: pw.Text(
-        text,
-        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
-      ),
-    );
+  padding: const pw.EdgeInsets.all(4),
+  child: pw.Text(
+    text,
+    style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+  ),
+);
 
 pw.Widget _levelCell(String? selected, String level) {
   final isSelected = selected == level;
@@ -1144,7 +1213,7 @@ pw.Widget _levelCell(String? selected, String level) {
           ? pw.Center(
               child: pw.Text(
                 level,
-                style: pw.TextStyle(
+                style: const pw.TextStyle(
                   fontSize: 7,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.white,
