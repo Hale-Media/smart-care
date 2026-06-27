@@ -8,6 +8,8 @@ import '../../models/compliance_summary.dart';
 import '../../services/compliance_service.dart';
 import '../../services/resident_service.dart';
 import '../../services/staff_service.dart';
+import '../../widgets/common/error_view.dart';
+import '../../widgets/common/loading_view.dart';
 import '../residents/resident_detail_screen.dart';
 import '../staff/staff_competency_screen.dart';
 
@@ -59,19 +61,12 @@ class _ComplianceDashboardScreenState extends State<ComplianceDashboardScreen> {
         ],
       ),
       body: _loading
-          ? const _LoadingView()
+          ? const LoadingView()
           : _error != null
-          ? _ErrorView(error: _error!, onRetry: _load)
+          ? ErrorView(message: _error!, onRetry: _load)
           : _Body(summary: _summary!, onRefresh: _load),
     );
   }
-}
-
-class _LoadingView extends StatelessWidget {
-  const _LoadingView();
-  @override
-  Widget build(BuildContext context) =>
-      const Center(child: CircularProgressIndicator());
 }
 
 class _Body extends StatelessWidget {
@@ -581,24 +576,3 @@ class _AllClearView extends StatelessWidget {
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  final String error;
-  final VoidCallback onRetry;
-  const _ErrorView({required this.error, required this.onRetry});
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.black26),
-          const SizedBox(height: 16),
-          Text(error, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('Retry')),
-        ],
-      ),
-    ),
-  );
-}

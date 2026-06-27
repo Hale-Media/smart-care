@@ -77,29 +77,29 @@ class _GdprScreenState extends State<GdprScreen> {
   }
 
   Future<void> _exportResident() => _run(() async {
-        final export = await _gdprService.exportResident(_selected!.id);
-        if (mounted) {
-          setState(() {
-            _export = export;
-            _notice = 'Subject access export generated.';
-          });
-        }
+    final export = await _gdprService.exportResident(_selected!.id);
+    if (mounted) {
+      setState(() {
+        _export = export;
+        _notice = 'Subject access export generated.';
       });
+    }
+  });
 
   Future<void> _restrict(bool restricted) => _run(() async {
-        if (restricted) {
-          await _gdprService.restrict(_selected!.id);
-        } else {
-          await _gdprService.unrestrict(_selected!.id);
-        }
-        if (mounted) {
-          setState(() {
-            _notice = restricted
-                ? 'Processing restriction recorded.'
-                : 'Processing restriction lifted.';
-          });
-        }
+    if (restricted) {
+      await _gdprService.restrict(_selected!.id);
+    } else {
+      await _gdprService.unrestrict(_selected!.id);
+    }
+    if (mounted) {
+      setState(() {
+        _notice = restricted
+            ? 'Processing restriction recorded.'
+            : 'Processing restriction lifted.';
       });
+    }
+  });
 
   Future<void> _erase() async {
     final confirmed = await _confirmErasure();
@@ -143,8 +143,9 @@ class _GdprScreenState extends State<GdprScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context)
-                .pop(controller.text.trim().toUpperCase() == 'ERASE'),
+            onPressed: () => Navigator.of(
+              context,
+            ).pop(controller.text.trim().toUpperCase() == 'ERASE'),
             child: const Text('Confirm'),
           ),
         ],
@@ -159,8 +160,9 @@ class _GdprScreenState extends State<GdprScreen> {
       ClipboardData(text: _jsonEncoder.convert(export.data)),
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Export copied')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Export copied')));
   }
 
   void _previewPdf() {
@@ -172,13 +174,15 @@ class _GdprScreenState extends State<GdprScreen> {
         '${resident['first_name'] ?? 'Resident'} ${resident['last_name'] ?? ''}'
             .trim();
     final date = DateFormat('yyyyMMdd').format(DateTime.now());
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => _SarPdfPreviewScreen(
-        title: 'SAR — $name',
-        filename: 'SAR_${name.replaceAll(' ', '_')}_$date.pdf',
-        buildPdf: (_) => _buildSarPdf(export),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _SarPdfPreviewScreen(
+          title: 'SAR — $name',
+          filename: 'SAR_${name.replaceAll(' ', '_')}_$date.pdf',
+          buildPdf: (_) => _buildSarPdf(export),
+        ),
       ),
-    ));
+    );
   }
 
   @override
@@ -199,8 +203,10 @@ class _GdprScreenState extends State<GdprScreen> {
                   if (_error != null)
                     Card(
                       child: ListTile(
-                        leading: const Icon(Icons.error_outline,
-                            color: Colors.red),
+                        leading: const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                        ),
                         title: Text(_error!),
                       ),
                     ),
@@ -224,36 +230,39 @@ class _GdprScreenState extends State<GdprScreen> {
                               prefixIcon: Icon(Icons.person_search_outlined),
                             ),
                             items: _residents
-                                .map((r) => DropdownMenuItem(
-                                      value: r,
-                                      child: Text(
-                                        '${r.fullName}${r.active ? '' : ' (discharged)'}',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ))
+                                .map(
+                                  (r) => DropdownMenuItem(
+                                    value: r,
+                                    child: Text(
+                                      '${r.fullName}${r.active ? '' : ' (discharged)'}',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
                                 .toList(),
                             onChanged: _busy
                                 ? null
                                 : (value) => setState(() {
-                                      _selected = value;
-                                      _export = null;
-                                      _notice = null;
-                                    }),
+                                    _selected = value;
+                                    _export = null;
+                                    _notice = null;
+                                  }),
                           ),
                           const SizedBox(height: 12),
                           FilledButton.icon(
-                            onPressed:
-                                selected == null || _busy ? null : _exportResident,
+                            onPressed: selected == null || _busy
+                                ? null
+                                : _exportResident,
                             icon: _busy
                                 ? const SizedBox(
                                     height: 18,
                                     width: 18,
                                     child: CircularProgressIndicator(
-                                        strokeWidth: 2),
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(Icons.file_download_outlined),
-                            label:
-                                const Text('Generate subject access export'),
+                            label: const Text('Generate subject access export'),
                           ),
                         ],
                       ),
@@ -291,11 +300,12 @@ class _GdprScreenState extends State<GdprScreen> {
                       title: 'Pseudonymise identifiers',
                       subtitle: isAdmin
                           ? selected != null && !selected.active
-                              ? 'Admin only. Direct identifiers are removed; records are retained.'
-                              : 'Only discharged residents can be pseudonymised.'
+                                ? 'Admin only. Direct identifiers are removed; records are retained.'
+                                : 'Only discharged residents can be pseudonymised.'
                           : 'Administrator role required.',
                       buttonLabel: 'Erase',
-                      onPressed: isAdmin &&
+                      onPressed:
+                          isAdmin &&
                               selected != null &&
                               !selected.active &&
                               !_busy
@@ -351,9 +361,8 @@ class _ActionTile extends StatelessWidget {
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Align(
@@ -399,8 +408,10 @@ class _ExportCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(generated,
-                      style: Theme.of(context).textTheme.titleMedium),
+                  child: Text(
+                    generated,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
                 IconButton(
                   tooltip: 'Copy JSON',
@@ -481,10 +492,12 @@ Future<Uint8List> _buildSarPdf(GdprExport export) async {
 
   for (final entry in export.data.entries) {
     body.add(pw.SizedBox(height: 12));
-    body.add(pw.Text(
-      _sarSectionTitle(entry.key),
-      style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
-    ));
+    body.add(
+      pw.Text(
+        _sarSectionTitle(entry.key),
+        style: const pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+      ),
+    );
     body.add(pw.Divider(thickness: 0.5));
 
     final value = entry.value;
@@ -493,69 +506,96 @@ Future<Uint8List> _buildSarPdf(GdprExport export) async {
     } else if (value is List) {
       if (value.isEmpty) {
         body.add(
-            pw.Text('No records.', style: const pw.TextStyle(fontSize: 9)));
+          pw.Text('No records.', style: const pw.TextStyle(fontSize: 9)),
+        );
       }
       for (var i = 0; i < value.length; i++) {
         final record = value[i];
         if (record is! Map) continue;
-        if (i > 0) body.add(pw.Divider(thickness: 0.3, color: PdfColors.grey400));
-        body.add(pw.Text('Record ${i + 1}',
-            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)));
+        if (i > 0) {
+          body.add(pw.Divider(thickness: 0.3, color: PdfColors.grey400));
+        }
+        body.add(
+          pw.Text(
+            'Record ${i + 1}',
+            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+          ),
+        );
         body.addAll(_sarRows(Map<String, dynamic>.from(record)));
       }
     }
   }
 
-  doc.addPage(pw.MultiPage(
-    pageFormat: PdfPageFormat.a4,
-    margin: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 36),
-    header: (ctx) => pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Text('SUBJECT ACCESS REPORT',
-                style: pw.TextStyle(
-                    fontSize: 15, fontWeight: pw.FontWeight.bold)),
-            pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
-                style: const pw.TextStyle(fontSize: 8)),
-          ],
-        ),
-        pw.Text('Resident: $residentName',
-            style: const pw.TextStyle(fontSize: 10)),
-        pw.Text('Generated: $generated — UK GDPR Article 15',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-        pw.SizedBox(height: 4),
-        pw.Divider(thickness: 1),
-      ],
+  doc.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 36),
+      header: (ctx) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'SUBJECT ACCESS REPORT',
+                style: const pw.TextStyle(
+                  fontSize: 15,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Text(
+                'Page ${ctx.pageNumber} of ${ctx.pagesCount}',
+                style: const pw.TextStyle(fontSize: 8),
+              ),
+            ],
+          ),
+          pw.Text(
+            'Resident: $residentName',
+            style: const pw.TextStyle(fontSize: 10),
+          ),
+          pw.Text(
+            'Generated: $generated — UK GDPR Article 15',
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+          ),
+          pw.SizedBox(height: 4),
+          pw.Divider(thickness: 1),
+        ],
+      ),
+      build: (_) => body,
     ),
-    build: (_) => body,
-  ));
+  );
 
   return doc.save();
 }
 
 List<pw.Widget> _sarRows(Map<String, dynamic> map) => map.entries
     .where((e) => e.value != null && '${e.value}'.isNotEmpty)
-    .map((e) => pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
-          child: pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.SizedBox(
-                width: 130,
-                child: pw.Text(_sarFormatKey(e.key),
-                    style: pw.TextStyle(
-                        fontSize: 9, fontWeight: pw.FontWeight.bold)),
+    .map(
+      (e) => pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.SizedBox(
+              width: 130,
+              child: pw.Text(
+                _sarFormatKey(e.key),
+                style: const pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
-              pw.Expanded(
-                child: pw.Text('${e.value}',
-                    style: const pw.TextStyle(fontSize: 9)),
+            ),
+            pw.Expanded(
+              child: pw.Text(
+                '${e.value}',
+                style: const pw.TextStyle(fontSize: 9),
               ),
-            ],
-          ),
-        ))
+            ),
+          ],
+        ),
+      ),
+    )
     .toList();
 
 String _sarSectionTitle(String key) => key

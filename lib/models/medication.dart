@@ -38,23 +38,26 @@ class Medication {
     this.lastAdministeredByName,
   });
 
+  static bool _parseBool(dynamic v, {bool fallback = false}) =>
+      v == null ? fallback : (v == 1 || v == true || v == '1');
+
   factory Medication.fromJson(Map<String, dynamic> j) => Medication(
-        id: j['id'] as int,
-        residentId: j['resident_id'] as int,
+        id: int.parse(j['id'].toString()),
+        residentId: int.parse(j['resident_id'].toString()),
         name: j['name'] ?? '',
         dose: j['dose'] ?? '',
         route: j['route'] ?? 'oral',
         frequency: j['frequency'] ?? '',
         times: (j['times'] is List)
-            ? (j['times'] as List).map((e) => e.toString()).toList()
-            : (j['times']?.toString().split(',') ?? []),
-        prn: j['prn'] == 1 || j['prn'] == true,
+            ? (j['times'] as List).map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList()
+            : j['times']?.toString().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList() ?? [],
+        prn: _parseBool(j['prn']),
         prnReason: j['prn_reason'],
-        controlledDrug: j['controlled_drug'] == 1 || j['controlled_drug'] == true,
+        controlledDrug: _parseBool(j['controlled_drug']),
         startDate: j['start_date'] != null ? DateTime.tryParse(j['start_date']) : null,
         endDate: j['end_date'] != null ? DateTime.tryParse(j['end_date']) : null,
         instructions: j['instructions'],
-        active: j['active'] == null ? true : (j['active'] == 1 || j['active'] == true),
+        active: j['active'] == null ? true : _parseBool(j['active'], fallback: true),
         lastAdministeredAt: j['last_administered_at'] != null
             ? DateTime.tryParse('${j['last_administered_at']}Z')?.toLocal()
             : null,
@@ -115,11 +118,11 @@ class MarEntry {
         id: j['id'] as int,
         medicationId: j['medication_id'] as int,
         residentId: j['resident_id'] as int,
-        scheduledFor: DateTime.parse((j['scheduled_for'] as String).replaceFirst(' ', 'T')),
+        scheduledFor: DateTime.tryParse(j['scheduled_for'] ?? '') ?? DateTime.now(),
         administeredAt: j['administered_at'] != null
-            ? DateTime.tryParse((j['administered_at'] as String).replaceFirst(' ', 'T'))
+            ? DateTime.tryParse(j['administered_at'])
             : null,
-        administeredByStaffId: j['administered_by'],
+        administeredByStaffId: j['administered_by'] != null ? int.tryParse(j['administered_by'].toString()) : null,
         administeredByName: j['administered_by_name'],
         outcome: MarOutcome.values.firstWhere(
           (e) => e.name == j['outcome'],

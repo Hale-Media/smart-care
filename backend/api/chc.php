@@ -132,6 +132,7 @@ function handleSummary(PDO $pdo, int $homeId): never
     ]);
 }
 
+
 function handleList(PDO $pdo, int $homeId): never
 {
     $residentId = (int) ($_GET['resident_id'] ?? 0);

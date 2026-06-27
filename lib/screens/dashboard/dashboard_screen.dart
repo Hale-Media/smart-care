@@ -36,9 +36,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _roundService = RoundService();
   final _chcService = ChcService();
 
-  int _overdueMeds = 0;
+  List<DueMedication> _overdueMedsList = [];
+  int get _overdueMeds => _overdueMedsList.length;
   int _pendingRounds = 0;
   ChcSummary _chc = const ChcSummary(positivePending: 0, totalDrafts: 0);
+  bool _extrasStale = false;
   Timer? _timer;
 
   @override
@@ -60,6 +62,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadExtras() async {
+    if (mounted) setState(() => _extrasStale = false);
     try {
       final now = DateTime.now();
       final from = DateTime(now.year, now.month, now.day);
@@ -74,12 +77,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final chc = results[2] as ChcSummary;
       if (mounted) {
         setState(() {
-          _overdueMeds = meds.where((m) => m.isOverdue).length;
+          _overdueMedsList = meds.where((m) => m.isOverdue).toList();
           _pendingRounds = rounds.where((r) => !r.isDone && !r.skipped).length;
           _chc = chc;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _extrasStale = true);
+    }
   }
 
   Future<void> _openOverdueMeds() async {
@@ -139,7 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            if (residents.isStale || alerts.isStale)
+            if (residents.isStale || alerts.isStale || _extrasStale)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Row(

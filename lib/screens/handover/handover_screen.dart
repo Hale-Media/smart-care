@@ -69,18 +69,25 @@ class _HandoverScreenState extends State<HandoverScreen> {
           ? const LoadingView()
           : _error != null
               ? ErrorView(message: _error!, onRetry: _load)
-              : _notes.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.swap_horiz,
-                      title: 'No handover notes',
-                      subtitle: 'Tap Write note to leave a message for the next shift.')
-                  : RefreshIndicator(
+              : RefreshIndicator(
                   onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                    itemCount: _notes.length,
-                    itemBuilder: (_, i) => _tile(_notes[i]),
-                  ),
+                  child: _notes.isEmpty
+                      ? const SingleChildScrollView(
+                          physics: AlwaysScrollableScrollPhysics(),
+                          child: SizedBox(
+                            height: 400,
+                            child: EmptyState(
+                              icon: Icons.swap_horiz,
+                              title: 'No handover notes',
+                              subtitle: 'Tap Write note to leave a message for the next shift.',
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+                          itemCount: _notes.length,
+                          itemBuilder: (_, i) => _tile(_notes[i]),
+                        ),
                 ),
     );
   }

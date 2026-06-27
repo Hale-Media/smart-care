@@ -124,20 +124,26 @@ class VitalReading {
   }
 
   factory VitalReading.fromJson(Map<String, dynamic> j) => VitalReading(
-        id: j['id'] as int,
-        residentId: j['resident_id'] as int,
+        id: _parseInt(j['id'])!,
+        residentId: _parseInt(j['resident_id'])!,
         recordedAt: DateTime.parse(j['recorded_at']),
-        recordedByStaffId: j['recorded_by'] as int? ?? 0,
-        respiratoryRate: j['respiratory_rate'],
-        spo2: j['spo2'],
+        recordedByStaffId: _parseInt(j['recorded_by']) ?? 0,
+        respiratoryRate: _parseInt(j['respiratory_rate']),
+        spo2: _parseInt(j['spo2']),
         onOxygen: j['on_oxygen'] == 1 || j['on_oxygen'] == true,
-        temperature: (j['temperature'] as num?)?.toDouble(),
-        systolicBp: j['systolic_bp'],
-        heartRate: j['heart_rate'],
+        temperature: _parseDouble(j['temperature']),
+        systolicBp: _parseInt(j['systolic_bp']),
+        heartRate: _parseInt(j['heart_rate']),
         consciousness: j['consciousness'] ?? 'A',
-        bloodGlucose: (j['blood_glucose'] as num?)?.toDouble(),
+        bloodGlucose: _parseDouble(j['blood_glucose']),
         notes: j['notes'],
       );
+
+  static int? _parseInt(dynamic v) =>
+      v == null ? null : int.tryParse(v.toString());
+
+  static double? _parseDouble(dynamic v) =>
+      v == null ? null : double.tryParse(v.toString());
 
   Map<String, dynamic> toJson() => {
         'id': id,

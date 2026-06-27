@@ -306,6 +306,86 @@ class _MedicationScreenState extends State<MedicationScreen>
     );
   }
 
+  Future<void> _confirmDelete(Medication m) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Deactivate medication?'),
+        content: Text('${m.name} ${m.dose} will be marked inactive. '
+            'MAR history is preserved.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.critical),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Deactivate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await _service.delete(m.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${m.name} deactivated')),
+        );
+        _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
+  Future<void> _administerFromList(Medication m) async {
+    if (m.prn || m.times.isEmpty) {
+      _openAdministerPage(m);
+      return;
+    }
+    if (m.times.length == 1) {
+      _openAdministerPage(m, scheduledTime: m.times.first);
+      return;
+    }
+    // Multi-dose: ask which scheduled slot to record.
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(
+                'Which dose of ${m.name} ${m.dose}?',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+            ),
+            ...m.times.map(
+              (t) => ListTile(
+                leading: const Icon(Icons.schedule),
+                title: Text(t),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openAdministerPage(m, scheduledTime: t);
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _medTile(Medication m) {
     String sub =
         '${Labels.medicationRoute(m.route)} · ${m.prn ? 'PRN${m.prnReason != null ? ' – ${m.prnReason}' : ''}' : m.frequency}';
@@ -317,20 +397,33 @@ class _MedicationScreenState extends State<MedicationScreen>
           : '';
       sub += '\nLast given: $time$carerPart';
     }
+    final inactive = !m.active;
     return Card(
+      color: inactive ? Colors.black.withValues(alpha: 0.03) : null,
       child: ListTile(
         leading: Icon(
           m.controlledDrug ? Icons.gpp_maybe : Icons.medication,
-          color: m.controlledDrug ? AppTheme.critical : AppTheme.primary,
+          color: inactive
+              ? Colors.black26
+              : m.controlledDrug
+                  ? AppTheme.critical
+                  : AppTheme.primary,
         ),
-        title: Text('${m.name} ${m.dose}',
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(sub),
+        title: Text(
+          '${m.name} ${m.dose}',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: inactive ? Colors.black38 : null,
+          ),
+        ),
+        subtitle: Text(sub, style: TextStyle(color: inactive ? Colors.black38 : null)),
         isThreeLine: true,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (m.controlledDrug)
+            if (inactive)
+              const StatusPill(label: 'Inactive', severity: 'low')
+            else if (m.controlledDrug)
               const StatusPill(label: 'CD', severity: 'high')
             else if (m.prn)
               const StatusPill(label: 'PRN', severity: 'medium'),
@@ -340,9 +433,17 @@ class _MedicationScreenState extends State<MedicationScreen>
               visualDensity: VisualDensity.compact,
               onPressed: () => _openAddMedPage(existing: m),
             ),
+            if (!inactive)
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                tooltip: 'Deactivate',
+                visualDensity: VisualDensity.compact,
+                color: AppTheme.critical,
+                onPressed: () => _confirmDelete(m),
+              ),
           ],
         ),
-        onTap: m.prn ? () => _openAdministerPage(m) : () => _tab.animateTo(1),
+        onTap: inactive ? null : () => _administerFromList(m),
       ),
     );
   }
@@ -858,6 +959,18 @@ class _AddMedicationPageState extends State<_AddMedicationPage> {
                         hintText: 'e.g. 08:00, 14:00, 20:00',
                         border: OutlineInputBorder(),
                       ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return null;
+                        final bad = v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).where((t) {
+                          final parts = t.split(':');
+                          if (parts.length != 2) return true;
+                          final h = int.tryParse(parts[0]);
+                          final m = int.tryParse(parts[1]);
+                          return h == null || m == null || h > 23 || m > 59;
+                        }).toList();
+                        if (bad.isEmpty) return null;
+                        return 'Invalid time(s): ${bad.join(', ')} — use HH:MM format';
+                      },
                     ),
                     const SizedBox(height: 8),
                   ],

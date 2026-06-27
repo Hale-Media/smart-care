@@ -20,17 +20,20 @@ if (!$own->fetch()) fail('Medication not found', 404);
 
 $staffId = (int)$auth['sub'];
 
-// Parse ISO 8601 strings from the Flutter client into MySQL-safe DATETIME strings.
-// Flutter sends administered_at as local time and scheduled_for as UTC (with Z suffix);
-// PHP's DateTime parser handles both correctly.
-function parseDt(?string $raw): ?string {
-    if (empty($raw)) return null;
-    try { return (new DateTime($raw))->format('Y-m-d H:i:s'); }
-    catch (Exception $e) { return null; }
+// Flutter sends ISO-8601 with T separator and optional Z/fractional seconds
+// (e.g. "2026-06-27T08:00:00.000Z"). MySQL DATETIME rejects the Z suffix and
+// stores 0000-00-00, breaking the mar_due slot-match lookup. Strip to plain
+// "Y-m-d H:i:s", preserving the clock time without timezone conversion so it
+// stays consistent with the HH:MM values stored in medications.times.
+function normaliseDatetime(?string $val, string $fallback): string {
+    if ($val === null || $val === '') return $fallback;
+    $clean = preg_replace('/\.\d*Z?$/', '', str_replace('T', ' ', trim($val)));
+    return (strtotime($clean) !== false) ? $clean : $fallback;
 }
 
-$administeredAt = parseDt($in['administered_at'] ?? null) ?? date('Y-m-d H:i:s');
-$scheduledFor   = parseDt($in['scheduled_for']   ?? null) ?? $administeredAt;
+$now            = date('Y-m-d H:i:s');
+$administeredAt = normaliseDatetime($in['administered_at'] ?? null, $now);
+$scheduledFor   = normaliseDatetime($in['scheduled_for']   ?? null, $administeredAt);
 
 // Prevent duplicate entries for the same slot (e.g. double-tap).
 $dup = db()->prepare(

@@ -1,10 +1,27 @@
+class ChcDomain {
+  final String level; // A | B | C
+  final String? evidence;
+
+  const ChcDomain({required this.level, this.evidence});
+
+  factory ChcDomain.fromJson(Map<String, dynamic> j) => ChcDomain(
+        level: j['level'] as String? ?? 'C',
+        evidence: j['evidence'] as String?,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'level': level,
+        if (evidence != null && evidence!.isNotEmpty) 'evidence': evidence,
+      };
+}
+
 class ChcChecklist {
   final int id;
-  final String status;
+  final String status; // draft | completed
   final int countA;
   final int countB;
   final int countC;
-  final String outcome;
+  final String outcome; // positive | negative
   final DateTime? completedAt;
   final DateTime createdAt;
   final Map<String, ChcDomain>? domains;
@@ -27,35 +44,41 @@ class ChcChecklist {
     required this.createdAt,
     this.domains,
     this.rationale,
-    this.personInvolved = false,
+    required this.personInvolved,
     this.representativeName,
-    this.representativeInvolved = false,
+    required this.representativeInvolved,
     this.assessorName,
     this.assessorRole,
     this.assessorOrg,
   });
 
-  bool get isPositive => outcome == 'positive';
   bool get isCompleted => status == 'completed';
+  bool get isPositive => outcome == 'positive';
 
   factory ChcChecklist.fromJson(Map<String, dynamic> j) {
+    final domainsRaw = j['domains'];
     Map<String, ChcDomain>? domains;
-    if (j['domains'] is Map) {
-      domains = (j['domains'] as Map<String, dynamic>).map(
-        (k, v) => MapEntry(k, ChcDomain.fromJson(v as Map<String, dynamic>)),
+    if (domainsRaw is Map) {
+      domains = domainsRaw.map(
+        (k, v) => MapEntry(
+          k as String,
+          ChcDomain.fromJson(v as Map<String, dynamic>),
+        ),
       );
     }
     return ChcChecklist(
-      id: j['id'] as int,
+      id: _i(j['id']),
       status: j['status'] as String? ?? 'draft',
-      countA: (j['count_a'] as num?)?.toInt() ?? 0,
-      countB: (j['count_b'] as num?)?.toInt() ?? 0,
-      countC: (j['count_c'] as num?)?.toInt() ?? 0,
+      countA: _i(j['count_a']),
+      countB: _i(j['count_b']),
+      countC: _i(j['count_c']),
       outcome: j['outcome'] as String? ?? 'negative',
       completedAt: j['completed_at'] != null
-          ? DateTime.tryParse((j['completed_at'] as String).replaceFirst(' ', 'T'))
+          ? DateTime.parse(j['completed_at'] as String)
           : null,
-      createdAt: DateTime.parse((j['created_at'] as String).replaceFirst(' ', 'T')),
+      createdAt: j['created_at'] != null
+          ? DateTime.parse(j['created_at'] as String)
+          : DateTime.now(),
       domains: domains,
       rationale: j['rationale'] as String?,
       personInvolved: j['person_involved'] == 1 || j['person_involved'] == true,
@@ -67,16 +90,11 @@ class ChcChecklist {
       assessorOrg: j['assessor_org'] as String?,
     );
   }
-}
 
-class ChcDomain {
-  final String level;
-  final String? evidence;
-
-  const ChcDomain({required this.level, this.evidence});
-
-  factory ChcDomain.fromJson(Map<String, dynamic> j) => ChcDomain(
-        level: j['level'] as String? ?? 'C',
-        evidence: j['evidence'] as String?,
-      );
+  static int _i(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return int.tryParse(v.toString()) ?? 0;
+  }
 }

@@ -44,6 +44,9 @@ class StaffService {
     return StaffUser.fromJson(res['user'] as Map<String, dynamic>);
   }
 
+  Future<void> reassignHome(int staffId, int homeId) =>
+      _api.post('/staff/update.php', {'id': staffId, 'home_id': homeId});
+
   Future<void> updateRole(int staffId, StaffRole role) =>
       _api.post('/staff/update.php', {'id': staffId, 'role': role.name});
 
