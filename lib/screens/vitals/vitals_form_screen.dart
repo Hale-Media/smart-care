@@ -62,8 +62,23 @@ class _VitalsFormScreenState extends State<VitalsFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Record vitals')),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: FilledButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save vitals'),
+          ),
+        ),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         children: [
           _num(_rr, 'Respiratory rate (breaths/min)'),
           _num(_spo2, 'SpO₂ (%)'),
@@ -90,11 +105,6 @@ class _VitalsFormScreenState extends State<VitalsFormScreen> {
             controller: _notes,
             decoration: const InputDecoration(labelText: 'Notes'),
             maxLines: 2,
-          ),
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: _saving ? null : _save,
-            child: Text(_saving ? 'Saving…' : 'Save vitals'),
           ),
         ],
       ),

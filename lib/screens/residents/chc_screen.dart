@@ -792,13 +792,14 @@ class _CompleteSheetState extends State<_CompleteSheet> {
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const Text(
                   'Sign off checklist',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 FilledButton(
-                  style: FilledButton.styleFrom(minimumSize: const Size(88, 44)),
+                  style: FilledButton.styleFrom(minimumSize: const Size(64, 44)),
                   onPressed: _saving ? null : _confirm,
                   child: _saving
                       ? const SizedBox(

@@ -1,8 +1,31 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Network access for API calls and on-device model downloads -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Foreground service for large model downloads (>500 MB) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <!-- Required for dataSync foreground service type on Android 14+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+
+    <!-- Download progress notifications on Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <application
         android:label="smart_care"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
+        <!-- Required by background_downloader for foreground downloads on Android 14+ -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Optional: GPU acceleration for model inference (OpenCL) -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false"/>
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false"/>
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

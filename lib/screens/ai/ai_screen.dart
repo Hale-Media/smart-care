@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../features/ai/review/review_provider.dart';
 import '../../features/ai/review/review_screen.dart';
+import 'package:flutter_gemma/flutter_gemma.dart';
 import '../../providers/ai_provider.dart';
+
 
 class AiScreen extends StatefulWidget {
   const AiScreen({super.key});
@@ -83,20 +85,25 @@ class _SetupCard extends StatefulWidget {
 
 class _SetupCardState extends State<_SetupCard> {
   final _urlCtrl = TextEditingController();
+  final _tokenCtrl = TextEditingController();
   bool _useUrl = true;
+  bool _showToken = false;
 
   @override
   void dispose() {
     _urlCtrl.dispose();
+    _tokenCtrl.dispose();
     super.dispose();
   }
+
+  String get _token => _tokenCtrl.text.trim();
 
   Future<void> _install() async {
     final value = _urlCtrl.text.trim();
     if (value.isEmpty) return;
     final ai = context.read<AiProvider>();
     if (_useUrl) {
-      await ai.installFromUrl(value);
+      await ai.installFromUrl(value, token: _token.isNotEmpty ? _token : null);
     } else {
       await ai.installFromFile(value);
     }
@@ -129,7 +136,76 @@ class _SetupCardState extends State<_SetupCard> {
             'You need a Gemma 3 .task model file (~300 MB for the 270M variant).',
             style: TextStyle(color: Colors.black54, height: 1.5),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          // HuggingFace token — required for gated Gemma models
+          Card(
+            margin: EdgeInsets.zero,
+            color: const Color(0xFFFFF8E1),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.key_outlined, size: 16, color: Colors.amber),
+                      SizedBox(width: 6),
+                      Text(
+                        'HuggingFace access token',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Gemma models are gated — you need a free HuggingFace account '
+                    'and a read token to download them. '
+                    'Go to huggingface.co → Settings → Access Tokens.',
+                    style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.5),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _tokenCtrl,
+                    obscureText: !_showToken,
+                    decoration: InputDecoration(
+                      labelText: 'Token (hf_…)',
+                      hintText: 'hf_xxxxxxxxxxxxxxxxxxxx',
+                      suffixIcon: IconButton(
+                        icon: Icon(_showToken ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _showToken = !_showToken),
+                      ),
+                    ),
+                    autocorrect: false,
+                    enableSuggestions: false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Option A: public model — no token required
+          _QuickInstallCard(
+            title: 'FunctionGemma 270M (public)',
+            subtitle: '284 MB · no login required · good general chat',
+            requiresToken: false,
+            onInstall: () => context.read<AiProvider>().installFromUrl(
+              kFunctionGemmaUrl,
+              modelType: ModelType.functionGemma,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Option B: Gemma 3 270M — requires HF token + gating approval
+          _QuickInstallCard(
+            title: 'Gemma 3 270M (gated)',
+            subtitle: '~300 MB · requires HuggingFace token above',
+            requiresToken: true,
+            onInstall: () => context.read<AiProvider>().installFromUrl(
+              kGemma3Url,
+              token: _token.isNotEmpty ? _token : null,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Manual URL / path install
           Card(
             margin: EdgeInsets.zero,
             child: Padding(
@@ -138,7 +214,7 @@ class _SetupCardState extends State<_SetupCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Where is the model?',
+                    'Custom model source',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 10),
@@ -185,45 +261,51 @@ class _SetupCardState extends State<_SetupCard> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          const _ModelHelpTile(),
         ],
       ),
     );
   }
 }
 
-class _ModelHelpTile extends StatelessWidget {
-  const _ModelHelpTile();
+class _QuickInstallCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool requiresToken;
+  final VoidCallback onInstall;
+
+  const _QuickInstallCard({
+    required this.title,
+    required this.subtitle,
+    required this.requiresToken,
+    required this.onInstall,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
+    return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.all(14),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Icon(Icons.info_outline, size: 16, color: AppTheme.info),
-                SizedBox(width: 6),
-                Text(
-                  'Recommended model',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  const SizedBox(height: 3),
+                  Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.black54, height: 1.4)),
+                ],
+              ),
             ),
-            SizedBox(height: 6),
-            Text(
-              'Gemma 3 270M IT (gemma3-270m-it-int4.task)\n'
-              '~300 MB · runs on mid-range Android devices\n'
-              'Available from HuggingFace: google/gemma-3-270m-it',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.black54,
-                height: 1.5,
+            const SizedBox(width: 12),
+            FilledButton.icon(
+              onPressed: onInstall,
+              icon: const Icon(Icons.download, size: 16),
+              label: const Text('Install'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
             ),
           ],
@@ -254,13 +336,23 @@ class _InstallingCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              progress < 100 ? 'Installing model…' : 'Loading model…',
+              progress < 100 ? 'Downloading model…' : 'Loading model…',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 16),
-            LinearProgressIndicator(value: progress / 100),
+            LinearProgressIndicator(value: progress > 0 ? progress / 100 : null),
             const SizedBox(height: 8),
-            Text('$progress%', style: const TextStyle(color: Colors.black54)),
+            Text(
+              progress > 0 ? '$progress%' : 'Starting…',
+              style: const TextStyle(color: Colors.black54),
+            ),
+            const SizedBox(height: 20),
+            TextButton.icon(
+              onPressed: () => context.read<AiProvider>().cancelInstall(),
+              icon: const Icon(Icons.cancel_outlined, size: 18),
+              label: const Text('Cancel'),
+              style: TextButton.styleFrom(foregroundColor: Colors.black54),
+            ),
           ],
         ),
       ),
@@ -317,9 +409,9 @@ class _ErrorCard extends StatelessWidget {
             ],
             const SizedBox(height: 20),
             OutlinedButton.icon(
-              onPressed: () => context.read<AiProvider>().installFromFile(''),
+              onPressed: () => context.read<AiProvider>().resetToSetup(),
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry setup'),
+              label: const Text('Try again'),
             ),
           ],
         ),

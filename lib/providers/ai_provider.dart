@@ -4,6 +4,14 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 
 enum ModelState { notInstalled, installing, loading, ready, error }
 
+/// Gemma 3 270M — requires HuggingFace token + gating approval
+const kGemma3Url =
+    'https://huggingface.co/litert-community/gemma-3-270m-it/resolve/main/gemma-3-270m-it.task';
+
+/// FunctionGemma 270M — public repo, no token required
+const kFunctionGemmaUrl =
+    'https://huggingface.co/sasha-denisov/function-gemma-270M-it/resolve/main/functiongemma-270M-it.task';
+
 class ChatMsg {
   final String text;
   final bool isUser;
@@ -17,6 +25,7 @@ class AiProvider extends ChangeNotifier {
 
   InferenceModel? _model;
   InferenceChat? _chat;
+  CancelToken? _cancelToken;
 
   final List<ChatMsg> _messages = [];
   bool _generating = false;
@@ -37,29 +46,40 @@ class AiProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> installFromUrl(String url) async {
+  Future<void> installFromUrl(
+    String url, {
+    String? token,
+    ModelType modelType = ModelType.gemmaIt,
+  }) async {
+    _cancelToken = CancelToken();
     _state = ModelState.installing;
     _progress = 0;
     _error = null;
     notifyListeners();
     try {
-      await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
-          .fromNetwork(url)
+      await FlutterGemma.installModel(modelType: modelType)
+          .fromNetwork(url, token: token?.isNotEmpty == true ? token : null)
           .withProgress((p) {
             _progress = p;
             notifyListeners();
           })
+          .withCancelToken(_cancelToken!)
           .install();
       await _loadModel();
     } catch (e, st) {
       dev.log('installFromUrl failed', name: 'AiProvider', error: e, stackTrace: st);
-      _state = ModelState.error;
-      _error = e.toString();
+      final cancelled = e.toString().toLowerCase().contains('cancel');
+      _state = ModelState.notInstalled;
+      _error = cancelled ? null : e.toString();
+      _progress = 0;
       notifyListeners();
+    } finally {
+      _cancelToken = null;
     }
   }
 
   Future<void> installFromFile(String filePath) async {
+    _cancelToken = CancelToken();
     _state = ModelState.installing;
     _progress = 0;
     _error = null;
@@ -67,16 +87,32 @@ class AiProvider extends ChangeNotifier {
     try {
       await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
           .fromFile(filePath)
+          .withCancelToken(_cancelToken!)
           .install();
       _progress = 100;
       notifyListeners();
       await _loadModel();
     } catch (e, st) {
       dev.log('installFromFile failed', name: 'AiProvider', error: e, stackTrace: st);
-      _state = ModelState.error;
-      _error = e.toString();
+      final cancelled = e.toString().toLowerCase().contains('cancel');
+      _state = ModelState.notInstalled;
+      _error = cancelled ? null : e.toString();
+      _progress = 0;
       notifyListeners();
+    } finally {
+      _cancelToken = null;
     }
+  }
+
+  void cancelInstall() {
+    _cancelToken?.cancel('User cancelled');
+  }
+
+  void resetToSetup() {
+    _state = ModelState.notInstalled;
+    _error = null;
+    _progress = 0;
+    notifyListeners();
   }
 
   Future<void> _loadModel() async {

@@ -315,17 +315,15 @@ class _RaiseConcernSheetState extends State<_RaiseConcernSheet> {
                   const Expanded(
                     child: Text(
                       'Raise safeguarding concern',
-                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
                   FilledButton(
                     style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 48),
+                      minimumSize: const Size(64, 44),
                     ),
                     onPressed: _saving ? null : _save,
                     child: _saving
@@ -482,17 +480,15 @@ class _ActionSheetState extends State<_ActionSheet> {
                   Expanded(
                     child: Text(
                       _title,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
                   FilledButton(
                     style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 48),
+                      minimumSize: const Size(64, 44),
                     ),
                     onPressed: _saving ? null : _save,
                     child: _saving

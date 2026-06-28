@@ -65,50 +65,82 @@ class _HomeShellState extends State<HomeShell> {
     }
     return Scaffold(
       body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dash',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'Residents',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: openAlerts > 0,
-              label: Text('$openAlerts'),
-              child: const Icon(Icons.notifications_outlined),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => setState(() => _index = 5),
+        tooltip: 'AI',
+        child: Icon(
+          _index == 5 ? Icons.psychology : Icons.psychology_outlined,
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8,
+        child: Row(
+          children: [
+            Expanded(child: _NavBtn(icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Dash', index: 0, current: _index, onTap: (i) => setState(() => _index = i))),
+            Expanded(child: _NavBtn(icon: Icons.people_outline, selectedIcon: Icons.people, label: 'Residents', index: 1, current: _index, onTap: (i) => setState(() => _index = i))),
+            Expanded(
+              child: _NavBtn(
+                icon: Icons.notifications_outlined,
+                selectedIcon: Icons.notifications,
+                label: 'Alerts',
+                index: 2,
+                current: _index,
+                onTap: (i) => setState(() => _index = i),
+                badge: openAlerts,
+              ),
             ),
-            selectedIcon: const Icon(Icons.notifications),
-            label: 'Alerts',
+            const SizedBox(width: 56),
+            Expanded(child: _NavBtn(icon: Icons.checklist_outlined, selectedIcon: Icons.checklist, label: 'Rounds', index: 3, current: _index, onTap: (i) => setState(() => _index = i))),
+            Expanded(child: _NavBtn(icon: Icons.report_problem_outlined, selectedIcon: Icons.report_problem, label: 'Incidents', index: 4, current: _index, onTap: (i) => setState(() => _index = i))),
+            Expanded(child: _NavBtn(icon: Icons.settings_outlined, selectedIcon: Icons.settings, label: 'Settings', index: 6, current: _index, onTap: (i) => setState(() => _index = i))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NavBtn extends StatelessWidget {
+  const _NavBtn({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.index,
+    required this.current,
+    required this.onTap,
+    this.badge = 0,
+  });
+
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final int index;
+  final int current;
+  final ValueChanged<int> onTap;
+  final int badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = index == current;
+    final color = selected
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        onTap: () => onTap(index),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Badge(
+            isLabelVisible: badge > 0,
+            label: Text('$badge'),
+            child: Icon(selected ? selectedIcon : icon, color: color),
           ),
-          const NavigationDestination(
-            icon: Icon(Icons.checklist_outlined),
-            selectedIcon: Icon(Icons.checklist),
-            label: 'Rounds',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.report_problem_outlined),
-            selectedIcon: Icon(Icons.report_problem),
-            label: 'Incidents',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.psychology_outlined),
-            selectedIcon: Icon(Icons.psychology),
-            label: 'AI',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        ),
       ),
     );
   }

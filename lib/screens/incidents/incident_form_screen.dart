@@ -183,7 +183,13 @@ class _IncidentFormScreenState extends State<IncidentFormScreen> {
               ],
               FilledButton(
                 onPressed: _saving ? null : _save,
-                child: Text(_saving ? 'Saving…' : 'Log incident'),
+                child: _saving
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Log incident'),
               ),
             ],
           ),

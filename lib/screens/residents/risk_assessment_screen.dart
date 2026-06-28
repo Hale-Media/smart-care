@@ -301,6 +301,7 @@ class _AssessmentFormSheet extends StatefulWidget {
 class _AssessmentFormSheetState extends State<_AssessmentFormSheet> {
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
+  String? _error;
 
   late String _type;
   late String _riskLevel;
@@ -352,7 +353,7 @@ class _AssessmentFormSheetState extends State<_AssessmentFormSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+    setState(() { _saving = true; _error = null; });
     final scoreVal =
         _score.text.trim().isNotEmpty ? int.tryParse(_score.text.trim()) : null;
     final reviewDueStr = _reviewDue != null
@@ -378,10 +379,7 @@ class _AssessmentFormSheetState extends State<_AssessmentFormSheet> {
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
-      }
+      if (mounted) setState(() => _error = '$e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -399,78 +397,99 @@ class _AssessmentFormSheetState extends State<_AssessmentFormSheet> {
       ),
       child: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              isReassess ? 'Re-assess' : 'New risk assessment',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      isReassess ? 'Re-assess' : 'New risk assessment',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(64, 44),
+                    ),
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Save'),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
-            if (!isReassess)
+              const SizedBox(height: 16),
+              if (!isReassess)
+                DropdownButtonFormField<String>(
+                  initialValue: _type,
+                  decoration:
+                      const InputDecoration(labelText: 'Assessment tool'),
+                  items: riskAssessmentTypes
+                      .map((t) => DropdownMenuItem(
+                            value: t,
+                            child: Text(riskTypeLabel(t)),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _type = v!),
+                ),
+              if (!isReassess) const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: _type,
-                decoration:
-                    const InputDecoration(labelText: 'Assessment tool'),
-                items: riskAssessmentTypes
-                    .map((t) => DropdownMenuItem(
-                          value: t,
-                          child: Text(riskTypeLabel(t)),
+                initialValue: _riskLevel,
+                decoration: const InputDecoration(labelText: 'Risk level *'),
+                items: riskLevels
+                    .map((l) => DropdownMenuItem(
+                          value: l,
+                          child: Text(riskLevelLabel(l)),
                         ))
                     .toList(),
-                onChanged: (v) => setState(() => _type = v!),
+                onChanged: (v) => setState(() => _riskLevel = v!),
               ),
-            if (!isReassess) const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _riskLevel,
-              decoration: const InputDecoration(labelText: 'Risk level *'),
-              items: riskLevels
-                  .map((l) => DropdownMenuItem(
-                        value: l,
-                        child: Text(riskLevelLabel(l)),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _riskLevel = v!),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _score,
-              decoration:
-                  const InputDecoration(labelText: 'Total score (optional)'),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _summary,
-              decoration:
-                  const InputDecoration(labelText: 'Summary / notes'),
-              maxLines: 3,
-              minLines: 2,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _reviewDueCtrl,
-              readOnly: true,
-              decoration: InputDecoration(
-                labelText: 'Review due',
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.calendar_today),
-                  onPressed: _pickReviewDue,
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _score,
+                decoration:
+                    const InputDecoration(labelText: 'Total score (optional)'),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _summary,
+                decoration:
+                    const InputDecoration(labelText: 'Summary / notes'),
+                maxLines: 3,
+                minLines: 2,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _reviewDueCtrl,
+                readOnly: true,
+                decoration: InputDecoration(
+                  labelText: 'Review due',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.calendar_today),
+                    onPressed: _pickReviewDue,
+                  ),
                 ),
+                onTap: _pickReviewDue,
               ),
-              onTap: _pickReviewDue,
-            ),
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child:
-                  Text(isReassess ? 'Save re-assessment' : 'Record assessment'),
-            ),
-          ],
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(_error!, style: const TextStyle(color: Colors.red)),
+              ],
+            ],
+          ),
         ),
       ),
     );
