@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:provider/provider.dart';
 
 import 'config/app_config.dart';
 import 'config/theme.dart';
+import 'features/ai/queue/annotation_queue.dart';
+import 'features/ai/queue/sqflite_annotation_queue.dart';
+import 'features/ai/review/review_provider.dart';
+import 'providers/ai_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/incident_provider.dart';
 import 'providers/resident_provider.dart';
@@ -15,11 +20,14 @@ import 'widgets/common/loading_view.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.instance.init();
-  runApp(const CarePackageApp());
+  await FlutterGemma.initialize();
+  await SqfliteAnnotationQueue.instance.open();
+  runApp(CarePackageApp(queue: SqfliteAnnotationQueue.instance));
 }
 
 class CarePackageApp extends StatelessWidget {
-  const CarePackageApp({super.key});
+  final AnnotationQueueStore queue;
+  const CarePackageApp({super.key, required this.queue});
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +37,10 @@ class CarePackageApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ResidentProvider()),
         ChangeNotifierProvider(create: (_) => AlertProvider()),
         ChangeNotifierProvider(create: (_) => IncidentProvider()),
+        ChangeNotifierProvider(create: (_) => AiProvider()),
+        ChangeNotifierProvider(
+          create: (_) => ReviewProvider(queueStore: queue),
+        ),
       ],
       child: MaterialApp(
         title: AppConfig.appName,

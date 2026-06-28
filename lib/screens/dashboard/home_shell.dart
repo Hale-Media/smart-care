@@ -4,6 +4,7 @@ import '../../providers/alert_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/incident_provider.dart';
 import '../../providers/resident_provider.dart';
+import '../ai/ai_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../residents/residents_screen.dart';
 import '../alerts/alerts_screen.dart';
@@ -32,6 +33,7 @@ class _HomeShellState extends State<HomeShell> {
       const AlertsScreen(),
       const RoundsScreen(),
       const IncidentsScreen(),
+      const AiScreen(),
       const SettingsScreen(),
     ];
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -95,6 +97,11 @@ class _HomeShellState extends State<HomeShell> {
             icon: Icon(Icons.report_problem_outlined),
             selectedIcon: Icon(Icons.report_problem),
             label: 'Incidents',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.psychology_outlined),
+            selectedIcon: Icon(Icons.psychology),
+            label: 'AI',
           ),
           const NavigationDestination(
             icon: Icon(Icons.settings_outlined),
