@@ -4,9 +4,10 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 
 enum ModelState { notInstalled, installing, loading, ready, error }
 
-/// Gemma 3 270M — requires HuggingFace token + gating approval
+/// Gemma 3 270M IT — requires HuggingFace token + gating approval.
+/// Repo: litert-community/gemma-3-270m-it  File: gemma3-270m-it-q8.task (304 MB)
 const kGemma3Url =
-    'https://huggingface.co/litert-community/gemma-3-270m-it/resolve/main/gemma-3-270m-it.task';
+    'https://huggingface.co/litert-community/gemma-3-270m-it/resolve/main/gemma3-270m-it-q8.task';
 
 /// FunctionGemma 270M — public repo, no token required
 const kFunctionGemmaUrl =
@@ -123,8 +124,8 @@ class AiProvider extends ChangeNotifier {
       _model = await FlutterGemma.getActiveModel(maxTokens: 1024);
       _chat = await _model!.createChat(
         systemInstruction: _kSystemInstruction,
-        temperature: 0.7,
-        topK: 40,
+        temperature: 0.3,
+        topK: 20,
       );
       _state = ModelState.ready;
       notifyListeners();
@@ -136,9 +137,14 @@ class AiProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> send(String text) async {
+  /// Send a message to the model.
+  ///
+  /// [text] is shown in the chat UI. [promptText] is what the model actually
+  /// receives — pass a RAG-augmented prompt here and the display stays clean.
+  Future<void> send(String text, {String? promptText}) async {
     if (_chat == null || _generating) return;
 
+    final llmText = promptText ?? text;
     _messages.add(ChatMsg(text: text, isUser: true));
     final int responseIndex = _messages.length;
     _messages.add(const ChatMsg(text: '', isUser: false));
@@ -147,17 +153,29 @@ class AiProvider extends ChangeNotifier {
 
     final buffer = StringBuffer();
     try {
-      await _chat!.addQuery(Message(text: text, isUser: true));
+      // Each RAG prompt is self-contained — clear model history so the
+      // previous turn's records don't double the context window.
+      await _chat!.clearHistory();
+      await _chat!.addQuery(Message(text: llmText, isUser: true));
       await for (final response in _chat!.generateChatResponseAsync()) {
         if (response is TextResponse) {
           buffer.write(response.token);
-          _messages[responseIndex] =
-              ChatMsg(text: buffer.toString(), isUser: false);
+          final text = buffer.toString().trimLeft();
+          _messages[responseIndex] = ChatMsg(text: text, isUser: false);
           notifyListeners();
+          // Detect repetition: 60-char window appearing twice = looping.
+          if (text.length > 200) {
+            final window = text.substring(text.length - 60);
+            final count = RegExp(RegExp.escape(window)).allMatches(text).length;
+            if (count >= 2) {
+              try { await _chat!.stopGeneration(); } catch (_) {}
+              break;
+            }
+          }
         }
       }
-    } catch (e) {
-      dev.log('send failed', name: 'AiProvider', error: e);
+    } catch (e, st) {
+      dev.log('send failed', name: 'AiProvider', error: e, stackTrace: st);
       _messages[responseIndex] = ChatMsg(text: 'Error: $e', isUser: false);
     } finally {
       _generating = false;
@@ -168,6 +186,13 @@ class AiProvider extends ChangeNotifier {
   Future<void> stopGeneration() async {
     await _chat?.stopGeneration();
     _generating = false;
+    notifyListeners();
+  }
+
+  void setMessages(List<ChatMsg> msgs) {
+    _messages
+      ..clear()
+      ..addAll(msgs);
     notifyListeners();
   }
 
@@ -187,8 +212,10 @@ class AiProvider extends ChangeNotifier {
 
 const _kSystemInstruction =
     'You are a helpful AI assistant for a UK care home. '
-    'Help care workers with questions about resident wellbeing, care practices, '
-    'medication administration, and care documentation. '
+    'When care home records are provided to you, read them carefully and '
+    'use them to answer questions accurately and factually. '
+    'You can discuss residents, their documented conditions, medications, '
+    'care notes, and handover summaries based on what the records say. '
     'Be concise and professional. Always prioritise resident safety. '
-    'Do not provide specific medical diagnoses or prescriptions — '
-    'advise consulting a nurse or GP for clinical decisions.';
+    'Do not prescribe new medications or make new clinical diagnoses — '
+    'for new clinical decisions advise consulting a nurse or GP.';

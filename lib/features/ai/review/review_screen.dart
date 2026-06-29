@@ -34,16 +34,24 @@ class _ReviewScreenState extends State<ReviewScreen> {
           padding: const EdgeInsets.fromLTRB(12, 12, 8, 4),
           child: Row(
             children: [
-              for (final f in ['pending', 'confirmed', 'dismissed'])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(_capitalize(f)),
-                    selected: review.filter == f,
-                    onSelected: (_) => review.load(filter: f),
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final f in ['pending', 'confirmed', 'dismissed'])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            label: Text(_capitalize(f)),
+                            selected: review.filter == f,
+                            onSelected: (_) => review.load(filter: f),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              const Spacer(),
+              ),
               if (review.queuedCount > 0)
                 Tooltip(
                   message:

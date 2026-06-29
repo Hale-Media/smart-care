@@ -4,11 +4,13 @@ import 'package:provider/provider.dart';
 
 import 'config/app_config.dart';
 import 'config/theme.dart';
+import 'features/ai/chat/chat_message_store.dart';
 import 'features/ai/queue/annotation_queue.dart';
 import 'features/ai/queue/sqflite_annotation_queue.dart';
 import 'features/ai/review/review_provider.dart';
 import 'providers/ai_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/rag_chat_provider.dart';
 import 'providers/incident_provider.dart';
 import 'providers/resident_provider.dart';
 import 'providers/alert_provider.dart';
@@ -22,6 +24,7 @@ Future<void> main() async {
   await NotificationService.instance.init();
   await FlutterGemma.initialize();
   await SqfliteAnnotationQueue.instance.open();
+  await ChatMessageStore.instance.open();
   runApp(CarePackageApp(queue: SqfliteAnnotationQueue.instance));
 }
 
@@ -38,6 +41,10 @@ class CarePackageApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AlertProvider()),
         ChangeNotifierProvider(create: (_) => IncidentProvider()),
         ChangeNotifierProvider(create: (_) => AiProvider()),
+        ChangeNotifierProxyProvider<AiProvider, RagChatProvider>(
+          create: (ctx) => RagChatProvider(ctx.read<AiProvider>()),
+          update: (_, ai, prev) => prev!,
+        ),
         ChangeNotifierProvider(
           create: (_) => ReviewProvider(queueStore: queue),
         ),

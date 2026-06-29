@@ -5,6 +5,8 @@ import '../../features/ai/review/review_provider.dart';
 import '../../features/ai/review/review_screen.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import '../../providers/ai_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/rag_chat_provider.dart';
 
 
 class AiScreen extends StatefulWidget {
@@ -71,6 +73,33 @@ class _AssistantTab extends StatelessWidget {
       ModelState.error => _ErrorCard(message: ai.error),
       ModelState.ready => const _ChatView(),
     };
+  }
+}
+
+// ── Disclaimer banner ─────────────────────────────────────────────────────────
+
+class _DisclaimerBanner extends StatelessWidget {
+  const _DisclaimerBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFFF8E1),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline, size: 14, color: Colors.amber),
+          SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'AI assistant — drafts and answers only. Always verify before acting.',
+              style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.3),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -194,10 +223,10 @@ class _SetupCardState extends State<_SetupCard> {
             ),
           ),
           const SizedBox(height: 8),
-          // Option B: Gemma 3 270M — requires HF token + gating approval
+          // Option B: Gemma 3 270M IT — best for care-record Q&A; requires HF token
           _QuickInstallCard(
-            title: 'Gemma 3 270M (gated)',
-            subtitle: '~300 MB · requires HuggingFace token above',
+            title: 'Gemma 3 270M IT (gated)',
+            subtitle: '304 MB · requires HuggingFace token above · best for chat',
             requiresToken: true,
             onInstall: () => context.read<AiProvider>().installFromUrl(
               kGemma3Url,
@@ -434,6 +463,20 @@ class _ChatViewState extends State<_ChatView> {
   final _scroll = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadContext());
+  }
+
+  void _loadContext() {
+    if (!mounted) return;
+    final homeId = context.read<AuthProvider>().activeHomeId;
+    if (homeId != null) {
+      context.read<RagChatProvider>().loadContext(homeId);
+    }
+  }
+
+  @override
   void dispose() {
     _ctrl.dispose();
     _scroll.dispose();
@@ -457,22 +500,36 @@ class _ChatViewState extends State<_ChatView> {
     if (text.isEmpty) return;
     _ctrl.clear();
     _scrollToBottom();
-    await context.read<AiProvider>().send(text);
+    await context.read<RagChatProvider>().send(text);
     _scrollToBottom();
   }
 
   @override
   Widget build(BuildContext context) {
-    final ai = context.watch<AiProvider>();
+    final rag = context.watch<RagChatProvider>();
 
-    if (ai.messages.isEmpty && !ai.generating) {
+    if (rag.messages.isEmpty && !rag.generating) {
       _scrollToBottom();
     }
 
     return Column(
       children: [
+        const _DisclaimerBanner(),
+        if (rag.indexing)
+          const LinearProgressIndicator(minHeight: 2)
+        else if (rag.hasContext)
+          Container(
+            width: double.infinity,
+            color: Colors.transparent,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: Text(
+              'Grounded on ${rag.residentCount} residents · ${rag.handoverCount} handover notes',
+              style: const TextStyle(fontSize: 10, color: Colors.black38),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         Expanded(
-          child: ai.messages.isEmpty
+          child: rag.messages.isEmpty
               ? const _EmptyChat()
               : ListView.builder(
                   controller: _scroll,
@@ -480,16 +537,16 @@ class _ChatViewState extends State<_ChatView> {
                     horizontal: 12,
                     vertical: 12,
                   ),
-                  itemCount: ai.messages.length,
-                  itemBuilder: (_, i) => _Bubble(msg: ai.messages[i]),
+                  itemCount: rag.messages.length,
+                  itemBuilder: (_, i) => _Bubble(msg: rag.messages[i]),
                 ),
         ),
         _InputBar(
           controller: _ctrl,
-          generating: ai.generating,
+          generating: rag.generating,
           onSend: _send,
-          onStop: () => context.read<AiProvider>().stopGeneration(),
-          onClear: () => context.read<AiProvider>().clearChat(),
+          onStop: () => context.read<RagChatProvider>().stopGeneration(),
+          onClear: () => context.read<RagChatProvider>().clearChat(),
         ),
       ],
     );
@@ -501,35 +558,44 @@ class _EmptyChat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.psychology_outlined,
-              size: 56,
-              color: Colors.black.withValues(alpha: 0.12),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 200;
+        return Center(
+          child: Padding(
+            padding: EdgeInsets.all(compact ? 12 : 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!compact) ...[
+                  Icon(
+                    Icons.psychology_outlined,
+                    size: 56,
+                    color: Colors.black.withValues(alpha: 0.12),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                const Text(
+                  'Ask me anything about care',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black45,
+                  ),
+                ),
+                if (!compact) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Medication questions · Care planning · Documentation help',
+                    style: TextStyle(fontSize: 12, color: Colors.black38),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Ask me anything about care',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black45,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Medication questions · Care planning · Documentation help',
-              style: TextStyle(fontSize: 12, color: Colors.black38),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
